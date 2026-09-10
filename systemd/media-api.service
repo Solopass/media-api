@@ -1,0 +1,18 @@
+[Unit]
+Description=Workstation Linux Media API (FastAPI + yt-dlp + faster-whisper)
+After=network.target ollama.service media-api.socket
+Requires=media-api.socket
+
+[Service]
+Type=simple
+User=jake
+WorkingDirectory=/mnt/d/Workspace/media-api
+ExecStart=/mnt/d/Workspace/media-api/run.sh
+Restart=no
+Nice=10
+Environment="HF_HOME=/mnt/d/AI/Cache/huggingface"
+Environment="UV_CACHE_DIR=/mnt/d/AI/Cache/uv"
+Environment="PYTHONPATH=/mnt/d/Workspace/media-api"
+
+[Install]
+WantedBy=multi-user.target

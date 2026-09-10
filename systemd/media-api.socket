@@ -1,0 +1,9 @@
+[Unit]
+Description=Workstation Linux Media API Socket (On-Demand Activation)
+PartOf=media-api.service
+
+[Socket]
+ListenStream=8080
+
+[Install]
+WantedBy=sockets.target
