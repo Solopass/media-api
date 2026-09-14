@@ -135,6 +135,7 @@ def cmd_clip(args):
 def cmd_transcribe(args):
     data = {
         "source": args.source,
+        "engine": args.engine,
         "model_size": args.model,
         "language": args.language
     }
@@ -151,6 +152,7 @@ def cmd_ingest(args):
         "source": args.source,
         "clip_start": args.clip_start,
         "clip_end": args.clip_end,
+        "engine": args.engine,
         "model_size": args.model,
         "summarize": not args.no_summary,
         "llm_model": args.llm_model
@@ -228,7 +230,8 @@ def main():
     if prog in ("media-transcribe", "transcribe"):
         parser = argparse.ArgumentParser(description="Transcribe media via faster-whisper on AVX-512")
         parser.add_argument("source", help="Media URL or local file path")
-        parser.add_argument("--model", default="tiny", choices=["tiny", "base", "small", "medium"], help="Whisper model size")
+        parser.add_argument("--engine", default=None, choices=["parakeet", "whisper"], help="STT engine (default: parakeet)")
+        parser.add_argument("--model", default="tiny", choices=["tiny", "base", "small", "medium"], help="Whisper model size (whisper engine only)")
         parser.add_argument("--language", default=None, help="Spoken language code (e.g. en, es)")
         parser.add_argument("--no-wait", action="store_true", help="Do not wait for job completion")
         parser.add_argument("--close", action="store_true", help="Immediately shut down API after completion")
@@ -240,7 +243,8 @@ def main():
         parser.add_argument("source", help="Media URL or local file path")
         parser.add_argument("--clip-start", default=None, help="Optional clip start timecode")
         parser.add_argument("--clip-end", default=None, help="Optional clip end timecode")
-        parser.add_argument("--model", default="tiny", choices=["tiny", "base", "small", "medium"], help="Whisper model size")
+        parser.add_argument("--engine", default=None, choices=["parakeet", "whisper"], help="STT engine (default: parakeet)")
+        parser.add_argument("--model", default="tiny", choices=["tiny", "base", "small", "medium"], help="Whisper model size (whisper engine only)")
         parser.add_argument("--no-summary", action="store_true", help="Disable executive Ollama summary")
         parser.add_argument("--llm-model", default="qwen2.5-coder:7b", help="Local LLM for executive summary")
         parser.add_argument("--no-wait", action="store_true", help="Do not wait for job completion")

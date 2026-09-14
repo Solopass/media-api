@@ -31,15 +31,17 @@ class ClipRequest(BaseModel):
 
 class TranscribeRequest(BaseModel):
     source: str = Field(..., description="URL or local media path to transcribe")
-    model_size: str = Field(default="tiny", description="Whisper model size: tiny, base, small, medium")
-    language: Optional[str] = Field(default=None, description="Language code (e.g. en, es, zh) or auto-detect")
+    engine: Optional[str] = Field(default=None, description="STT engine: parakeet or whisper (default from MEDIA_API_STT_ENGINE, parakeet)")
+    model_size: str = Field(default="tiny", description="Whisper model size (whisper engine only): tiny, base, small, medium")
+    language: Optional[str] = Field(default=None, description="Language code (e.g. en, es, zh) or auto-detect. Languages parakeet doesn't support use whisper")
     timestamps: bool = Field(default=True, description="Include word-level/segment timestamps")
 
 class IngestRequest(BaseModel):
     source: str = Field(..., description="Video/Audio URL or local file path")
     clip_start: Optional[str] = Field(default=None, description="Optional clip start timecode")
     clip_end: Optional[str] = Field(default=None, description="Optional clip end timecode")
-    model_size: str = Field(default="tiny", description="Whisper model size")
+    engine: Optional[str] = Field(default=None, description="STT engine: parakeet or whisper (default from MEDIA_API_STT_ENGINE, parakeet)")
+    model_size: str = Field(default="tiny", description="Whisper model size (whisper engine only)")
     summarize: bool = Field(default=True, description="Generate executive summary with local Ollama LLM")
     llm_model: str = Field(default="qwen2.5-coder:7b", description="Local LLM model to query")
     priority: str = Field(default="normal", description="Queue priority")

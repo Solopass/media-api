@@ -40,10 +40,10 @@ class ObsidianService:
     def create_transcript_note(
         media_info: Dict[str, Any],
         transcription: Dict[str, Any],
-        summary: str,
-        model_size: str = "tiny"
+        summary: str
     ) -> Path:
         import re
+        stt_label = transcription.get("model") or "unknown"
         date_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         date_id = datetime.now().strftime("%Y-%m-%d_%H%M%S")
         raw_title = media_info.get("title") or Path(media_info.get("file_path", "transcript")).stem
@@ -63,7 +63,7 @@ class ObsidianService:
             "tags: [media, transcript, ai-ingest, obsidian-second-brain]",
             f"source_url: \"{clean_source_url}\"",
             f"duration: \"{transcription.get('duration', 0)}s\"",
-            f"whisper_model: \"{model_size}\"",
+            f"stt_model: \"{stt_label}\"",
             f"language: \"{transcription.get('language', 'auto')}\"",
             "---",
             "",
@@ -78,7 +78,7 @@ class ObsidianService:
             f"- **Source Media**: `{media_info.get('file_path', '')}`",
             f"- **Uploader/Author**: {media_info.get('uploader', 'Unknown')}",
             f"- **Audio Duration**: {transcription.get('duration', 0)}s",
-            f"- **Processed By**: Workstation Media API (`faster-whisper` {model_size})",
+            f"- **Processed By**: Workstation Media API (`{stt_label}`)",
             "",
             "---",
             "",

@@ -1,6 +1,11 @@
 # 📹 Workstation Linux Media API Reference
 
-> REST API for automated YouTube downloads, lossless video clipping, speech-to-text transcription via `faster-whisper`, and direct Obsidian vault ingestion.
+> REST API for automated YouTube downloads, lossless video clipping, speech-to-text transcription (parakeet by default, `faster-whisper` for languages parakeet doesn't cover), and direct Obsidian vault ingestion.
+
+## Speech-to-text engines
+- **`parakeet`** (default): `parakeet-tdt-0.6b-v3` q8 via the Windows `parakeet-cli.exe` (WSL interop). Most accurate in `D:\OBVLT\reports\stt-bench.md` (4.8% WER vs 5.7% for whisper tiny, better on names) and ~19x realtime at 8 threads. Covers 25 European languages; doesn't report the detected language.
+- **`whisper`**: faster-whisper on CPU (`model_size` tiny/base/small/medium). Used automatically when `language` is set to one parakeet doesn't support.
+- Choose per request with `"engine"`, or change the default with `MEDIA_API_STT_ENGINE`. `MEDIA_API_PARAKEET_THREADS` (default 8) limits parakeet's CPU use, since run.sh's E-core pinning doesn't apply to a Windows process.
 
 ---
 
@@ -11,7 +16,7 @@
 | `GET` | `/api/v1/health` | Health audit, core affinity & storage verification |
 | `POST` | `/api/v1/download` | Download YouTube or web media to `D:\Output\Videos\` |
 | `POST` | `/api/v1/clip` | Slice video/audio between start and end timestamps |
-| `POST` | `/api/v1/transcribe` | Transcribe media via `faster-whisper` |
+| `POST` | `/api/v1/transcribe` | Transcribe media (parakeet or `faster-whisper`) |
 | `POST` | `/api/v1/ingest` | One-shot pipeline: Download → Clip → Transcribe → Ollama Summary → Obsidian Note |
 | `GET` | `/api/v1/status/{id}` | Poll asynchronous job status, progress %, and files |
 | `GET` | `/api/v1/jobs` | View queue of all recent operations |
@@ -40,7 +45,7 @@ media-download "https://www.youtube.com/watch?v=..." [-Format mp4] [-AudioOnly] 
 # Precision slice video/audio
 media-clip "path/or/url" 00:01:00 00:02:30 [-Format mp4] [-ReEncode] [-Close]
 
-# Speech-to-text transcription via faster-whisper on AVX-512
+# Speech-to-text transcription (parakeet by default; -Model only applies to the whisper engine)
 media-transcribe "path/or/url" [-Model tiny] [-Language en] [-Close]
 
 # Full Ingest -> Ollama Summary -> Obsidian Vault Note
@@ -85,7 +90,7 @@ curl -X POST http://localhost:8080/api/v1/ingest \
   -H "Content-Type: application/json" \
   -d '{
     "source": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-    "model_size": "tiny",
+    "engine": "parakeet",
     "summarize": true,
     "llm_model": "qwen2.5-coder:7b"
   }'

@@ -7,7 +7,7 @@ from app.models.schemas import TranscribeRequest, JobResponse, JobStatus
 from app.queue.manager import job_manager
 from app.services.ytdlp_service import YtDlpService
 from app.services.ffmpeg_service import FFmpegService
-from app.services.whisper_service import WhisperService
+from app.services import stt_service
 from app.services.obsidian_service import ObsidianService
 from app.config import normalize_path
 
@@ -34,9 +34,11 @@ def run_transcribe_task(job_id: str, req: TranscribeRequest):
         else:
             audio_path = source_path
 
-        job_manager.update_job(job_id, progress_percent=50.0, speed="Transcribing with Whisper...")
-        trans_res = WhisperService.transcribe(
+        engine = stt_service.resolve_engine(req.engine, req.language)
+        job_manager.update_job(job_id, progress_percent=50.0, speed=f"Transcribing with {engine}...")
+        trans_res = stt_service.transcribe(
             audio_path=audio_path,
+            engine=engine,
             model_size=req.model_size,
             language=req.language
         )
@@ -59,11 +61,16 @@ def run_transcribe_task(job_id: str, req: TranscribeRequest):
 
 @router.post("/transcribe", response_model=JobResponse)
 def transcribe_media(req: TranscribeRequest, background_tasks: BackgroundTasks):
+    try:
+        engine = stt_service.resolve_engine(req.engine, req.language)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     job_id = job_manager.create_job("transcribe", req.source)
     background_tasks.add_task(run_transcribe_task, job_id, req)
+    label = f"whisper {req.model_size}" if engine == "whisper" else engine
     return JobResponse(
         job_id=job_id,
         status=JobStatus.QUEUED,
-        message=f"Transcription queued (model: {req.model_size})",
+        message=f"Transcription queued (engine: {label})",
         created_at=datetime.now().isoformat()
     )

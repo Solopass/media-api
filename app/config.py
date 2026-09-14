@@ -31,6 +31,14 @@ class Settings(BaseModel):
     default_llm_model: str = "qwen2.5-coder:7b"
     default_whisper_model: str = "tiny"  # tiny/base/small/medium
 
+    # Speech-to-text engine: "parakeet" (default, most accurate in D:\OBVLT\reports\stt-bench.md) or "whisper".
+    # parakeet-cli is a Windows binary run through WSL interop, so run.sh's E-core pinning does not apply to it;
+    # parakeet_threads keeps it from taking every core.
+    stt_engine: str = os.getenv("MEDIA_API_STT_ENGINE", "parakeet")
+    parakeet_cli: Path = Path("/mnt/d/AI/bin/whisper-b5130-blas/Release/parakeet-cli.exe")
+    parakeet_model: Path = Path("/mnt/d/AI/Models/Whisper/ggml-parakeet-tdt-0.6b-v3-q8_0.bin")
+    parakeet_threads: int = int(os.getenv("MEDIA_API_PARAKEET_THREADS", "8"))
+
     # On-Demand Lifecycle & Auto-Close (Workstation Standard)
     idle_timeout_seconds: int = int(os.getenv("MEDIA_API_IDLE_TIMEOUT", "60"))
     auto_close: bool = True
