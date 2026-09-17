@@ -1,9 +1,9 @@
 import os
 from pathlib import Path
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from datetime import datetime
 
-from app.models.schemas import DownloadRequest, ClipRequest, JobResponse, JobStatus
+from app.models.schemas import DownloadRequest, ClipRequest, JobResponse, JobStatus, MediaProbeResponse
 from app.queue.manager import job_manager
 from app.services.ytdlp_service import YtDlpService
 from app.services.ffmpeg_service import FFmpegService
@@ -12,9 +12,16 @@ from app.config import settings, normalize_path
 router = APIRouter(prefix="/api/v1", tags=["Media Operations"])
 
 def run_download_task(job_id: str, req: DownloadRequest):
+    if job_manager.is_cancelled(job_id):
+        return
     job_manager.update_job(job_id, status=JobStatus.RUNNING)
     try:
+        if job_manager.is_cancelled(job_id):
+            return
+
         def progress(d):
+            if job_manager.is_cancelled(job_id):
+                return
             if d.get("status") == "downloading":
                 total = d.get("total_bytes") or d.get("total_bytes_estimate") or 1
                 downloaded = d.get("downloaded_bytes", 0)
@@ -34,6 +41,10 @@ def run_download_task(job_id: str, req: DownloadRequest):
             target_format=req.format.value,
             progress_hook=progress
         )
+
+        if job_manager.is_cancelled(job_id):
+            return
+
         job_manager.update_job(
             job_id,
             status=JobStatus.COMPLETED,
@@ -41,17 +52,27 @@ def run_download_task(job_id: str, req: DownloadRequest):
             output_files={"media": info["file_path"]}
         )
     except Exception as e:
-        job_manager.update_job(job_id, status=JobStatus.FAILED, error=str(e))
+        if not job_manager.is_cancelled(job_id):
+            job_manager.update_job(job_id, status=JobStatus.FAILED, error=str(e))
 
 def run_clip_task(job_id: str, req: ClipRequest):
+    if job_manager.is_cancelled(job_id):
+        return
     job_manager.update_job(job_id, status=JobStatus.RUNNING)
     try:
+        if job_manager.is_cancelled(job_id):
+            return
+
+
         # If source is a URL, download it first
         if req.source.startswith("http://") or req.source.startswith("https://"):
             info = YtDlpService.download(req.source)
             source_path = Path(info["file_path"])
         else:
             source_path = normalize_path(req.source)
+
+        if job_manager.is_cancelled(job_id):
+            return
 
         if not source_path.exists():
             raise FileNotFoundError(f"Source media not found: {source_path}")
@@ -61,8 +82,14 @@ def run_clip_task(job_id: str, req: ClipRequest):
             start_time=req.start_time,
             end_time=req.end_time,
             target_format=req.format.value,
-            re_encode=req.re_encode
+            re_encode=req.re_encode,
+            normalize_audio=req.normalize_audio,
+            speech_optimized=req.speech_optimized
         )
+
+        if job_manager.is_cancelled(job_id):
+            return
+
         job_manager.update_job(
             job_id,
             status=JobStatus.COMPLETED,
@@ -70,7 +97,25 @@ def run_clip_task(job_id: str, req: ClipRequest):
             output_files={"clip": str(clipped_file)}
         )
     except Exception as e:
-        job_manager.update_job(job_id, status=JobStatus.FAILED, error=str(e))
+        if not job_manager.is_cancelled(job_id):
+            job_manager.update_job(job_id, status=JobStatus.FAILED, error=str(e))
+
+@router.get("/media/probe", response_model=MediaProbeResponse)
+def probe_media_info(url: str = Query(..., description="Target video/audio URL or local file path to probe")):
+    """Extract metadata preview (title, uploader, duration, thumbnail) without full download."""
+    try:
+        if url.startswith("http://") or url.startswith("https://"):
+            data = YtDlpService.probe_url(url)
+        else:
+            path = normalize_path(url)
+            if not path.exists():
+                raise HTTPException(status_code=404, detail=f"Local media file not found: {url}")
+            data = FFmpegService.probe_local_media(path)
+        return MediaProbeResponse(**data)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to probe media: {str(e)}")
 
 @router.post("/download", response_model=JobResponse)
 def download_media(req: DownloadRequest, background_tasks: BackgroundTasks):
@@ -93,3 +138,4 @@ def clip_media(req: ClipRequest, background_tasks: BackgroundTasks):
         message=f"Clip extraction queued ({req.start_time} -> {req.end_time})",
         created_at=datetime.now().isoformat()
     )
+

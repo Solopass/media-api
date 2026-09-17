@@ -230,6 +230,68 @@ def test_obsidian_service_subfolder_and_tags(tmp_path):
     assert "custom-tag-2" in content
     assert "media" in content
 
+def test_obsidian_service_presets_and_focus(tmp_path):
+    from app.services.obsidian_service import ObsidianService
+    from app.config import settings
+
+    vault_dir = tmp_path / "Vault" / "Transcripts"
+    output_dir = tmp_path / "Output" / "Transcripts"
+    vault_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    media_info = {
+        "title": "Roadmap Sync",
+        "file_path": "/mnt/d/AI/Cache/uploads/sync.wav",
+        "url": "https://example.com/sync",
+    }
+    transcription = {
+        "duration": 60,
+        "model": "parakeet-tdt-0.6b-v3-q8_0",
+        "language": "en",
+        "segments": [{"start": 0.0, "end": 2.0, "text": "Sync discussion"}]
+    }
+
+    with mock.patch.object(settings, "vault_transcripts", vault_dir), \
+         mock.patch.object(settings, "output_transcripts", output_dir), \
+         mock.patch.object(settings, "vault_dashboard", tmp_path / "Transcripts_Dashboard.md"):
+        note_path = ObsidianService.create_transcript_note(
+            media_info=media_info,
+            transcription=transcription,
+            summary="- Action 1: Deploy by Friday\n- Decision 2: Approved",
+            summary_preset="meeting",
+            summary_focus="Focus strictly on deliverables and deadlines"
+        )
+
+    assert note_path.exists()
+    content = note_path.read_text(encoding="utf-8")
+    assert "summary-meeting" in content
+    assert "Meeting Minutes & Decisions" in content
+    assert "User focus: Focus strictly on deliverables and deadlines" in content
+
+
+def test_ingest_cancellation_short_circuits(tmp_path):
+    from app.routers.ingest import run_ingest_pipeline
+    from app.models.schemas import IngestRequest
+    from app.queue.manager import job_manager, JobStatus
+
+    fake_audio = tmp_path / "cancelled_task.wav"
+    fake_audio.write_bytes(b"RIFFdummywavdata")
+
+    job_id = job_manager.create_job("ingest", str(fake_audio))
+    # Pre-cancel the job
+    job_manager.cancel_job(job_id)
+
+    req = IngestRequest(source=str(fake_audio), engine="parakeet", summarize=False)
+
+    with mock.patch("app.routers.ingest.stt_service.transcribe") as mock_transcribe:
+        run_ingest_pipeline(job_id, req)
+        # Should not even call transcription because it was cancelled
+        assert not mock_transcribe.called
+
+    job = job_manager.get_job(job_id)
+    assert job.status == JobStatus.CANCELLED
+
+
 
 
 

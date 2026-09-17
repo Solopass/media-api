@@ -28,6 +28,8 @@ class ClipRequest(BaseModel):
     end_time: str = Field(..., description="End timestamp (e.g. HH:MM:SS or seconds)")
     format: MediaFormat = Field(default=MediaFormat.MP4, description="Output format")
     re_encode: bool = Field(default=False, description="Force frame-accurate re-encode vs fast keyframe copy")
+    normalize_audio: bool = Field(default=False, description="Apply EBU R128 loudness normalization")
+    speech_optimized: bool = Field(default=False, description="Convert to 16kHz mono WAV for speech/STT")
 
 class TranscribeRequest(BaseModel):
     source: str = Field(..., description="URL or local media path to transcribe")
@@ -44,9 +46,23 @@ class IngestRequest(BaseModel):
     model_size: str = Field(default="tiny", description="Whisper model size (whisper engine only)")
     summarize: bool = Field(default=True, description="Generate executive summary with local Ollama LLM")
     llm_model: str = Field(default="sol-fast", description="Local LLM model to query")
+    summary_preset: str = Field(default="executive", description="Summary template: executive, meeting, timeline, technical, bullets")
+    summary_focus: Optional[str] = Field(default=None, description="Optional custom user focus instructions")
     vault_subfolder: str = Field(default="Transcripts", description="Subfolder path inside D:\\AI\\Vault")
     tags: list[str] = Field(default_factory=list, description="Custom tags for Obsidian YAML frontmatter")
     priority: str = Field(default="normal", description="Queue priority")
+
+class ConfigIdleRequest(BaseModel):
+    timeout_seconds: int = Field(default=60, description="Idle timeout in seconds (0 or negative = disabled)")
+    auto_close: bool = Field(default=True, description="Enable automatic shutdown when idle")
+
+class MediaProbeResponse(BaseModel):
+    title: str
+    uploader: str
+    duration: float = 0.0
+    duration_formatted: str = "00:00"
+    thumbnail: Optional[str] = None
+    description: Optional[str] = None
 
 class JobResponse(BaseModel):
     job_id: str

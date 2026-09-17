@@ -17,8 +17,13 @@ from app.config import normalize_path
 router = APIRouter(prefix="/api/v1", tags=["Full Ingestion Pipeline"])
 
 def run_ingest_pipeline(job_id: str, req: IngestRequest):
+    if job_manager.is_cancelled(job_id):
+        return
     job_manager.update_job(job_id, status=JobStatus.RUNNING)
     try:
+        if job_manager.is_cancelled(job_id):
+            return
+
         # Step 1: Download or resolve local file
         is_url = req.source.startswith("http://") or req.source.startswith("https://")
         if is_url:
@@ -36,6 +41,10 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
                 "url": str(current_media)
             }
 
+        # Check cancellation
+        if job_manager.is_cancelled(job_id):
+            return
+
         # Step 2: Optional clipping
         if req.clip_start and req.clip_end:
             job_manager.update_job(job_id, progress_percent=35.0, speed="Clipping...")
@@ -46,16 +55,28 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
             )
             media_info["file_path"] = str(current_media)
 
+        # Check cancellation
+        if job_manager.is_cancelled(job_id):
+            return
+
         # Step 3: Extract Audio & Transcribe
         job_manager.update_job(job_id, progress_percent=50.0, speed="Extracting Audio...")
-        if current_media.suffix.lower() in [".mp4", ".mkv", ".webm", ".mov", ".avi"]:
+        video_exts = {".mp4", ".mkv", ".webm", ".mov", ".avi", ".flv", ".ts", ".wmv"}
+        non_native_audio = {".opus", ".wma"}
+        if current_media.suffix.lower() in video_exts or current_media.suffix.lower() in non_native_audio:
             audio_path = FFmpegService.extract_audio(current_media)
         else:
             audio_path = current_media
 
+        if job_manager.is_cancelled(job_id):
+            return
+
         engine = stt_service.resolve_engine(req.engine, None)
         job_manager.update_job(job_id, progress_percent=70.0, speed=f"Transcribing with {engine}...")
         trans_res = stt_service.transcribe(audio_path, engine=engine, model_size=req.model_size)
+
+        if job_manager.is_cancelled(job_id):
+            return
 
         # Full result sidecar for GUI audio player timestamp seeking and sync
         out_json = audio_path.with_suffix(".transcript.json")
@@ -68,8 +89,19 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
         # Step 4: Executive AI Summary via Ollama
         summary = "*(Summary disabled)*"
         if req.summarize:
+            if job_manager.is_cancelled(job_id):
+                return
             job_manager.update_job(job_id, progress_percent=85.0, speed="Generating Ollama Summary...")
-            summary = summarize_with_ollama(media_info["title"], trans_res["full_text"], req.llm_model)
+            summary = summarize_with_ollama(
+                title=media_info["title"],
+                text=trans_res["full_text"],
+                model_name=req.llm_model,
+                preset=req.summary_preset,
+                focus=req.summary_focus
+            )
+
+        if job_manager.is_cancelled(job_id):
+            return
 
         # Step 5: Save Note directly to Obsidian Vault Transcripts
         job_manager.update_job(job_id, progress_percent=95.0, speed="Writing Obsidian Vault Note...")
@@ -79,7 +111,9 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
             transcription=trans_res,
             summary=summary,
             vault_subfolder=clean_sub,
-            custom_tags=req.tags
+            custom_tags=req.tags,
+            summary_preset=req.summary_preset,
+            summary_focus=req.summary_focus
         )
 
         # Step 6: Trigger Semantic Vector Re-Index (Non-blocking)

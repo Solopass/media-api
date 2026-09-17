@@ -7,15 +7,59 @@ from typing import Dict, Any, List, Optional
 
 from app.config import settings
 
-def summarize_with_ollama(title: str, text: str, model_name: str = "sol-fast") -> str:
-    """Query local Ollama chat API instance for an executive briefing summary."""
-    system_instruction = (
+PRESET_INSTRUCTIONS = {
+    "executive": (
         "You are the executive intelligence summarizer on the SOL workstation.\n"
         "Generate a crisp, structured Markdown summary of the following transcript.\n"
-        "Use bullet points, bold keywords, and an 'Actionable Takeaways' section.\n"
+        "Include: (1) Core Executive Briefing, (2) Key Themes & Decisions, (3) Deliverables & Actionable Takeaways.\n"
+        "Use bold keywords. Never invent facts, dates, or numbers not present in the transcript."
+    ),
+    "meeting": (
+        "You are an expert executive scribe on the SOL workstation.\n"
+        "Generate professional Meeting Minutes from the following transcript.\n"
+        "Structure: (1) Participants/Speakers Mentioned, (2) Agenda Topics Discussed, (3) Key Decisions Reached, (4) Action Item Ownership Table (| Owner | Action Item | Target |).\n"
+        "Never invent facts, dates, or numbers not present in the transcript."
+    ),
+    "timeline": (
+        "You are a media archivist on the SOL workstation.\n"
+        "Generate a Chronological Topic Breakdown & Timeline from the following transcript.\n"
+        "Structure: A chronological table of contents tracking major topic shifts, key arguments, and quotes.\n"
+        "Never invent facts, dates, or numbers not present in the transcript."
+    ),
+    "technical": (
+        "You are a principal systems architect on the SOL workstation.\n"
+        "Generate a Technical Deep Dive summary from the following transcript.\n"
+        "Structure: (1) Architectural & System Overview, (2) APIs, Protocols & Schemas, (3) Technical Trade-offs & Constraints, (4) Implementation Notes.\n"
+        "Never invent facts, dates, or numbers not present in the transcript."
+    ),
+    "bullets": (
+        "You are a concise information extractor on the SOL workstation.\n"
+        "Generate a dense, high-signal bulleted summary of the following transcript.\n"
+        "Use bold lead-ins for each bullet. Omit conversational filler and pleasantries.\n"
         "Never invent facts, dates, or numbers not present in the transcript."
     )
-    user_prompt = f"Title: {title}\n\nTranscript:\n{text[:45000]}\n\nSummary:"
+}
+
+PRESET_TITLES = {
+    "executive": "Executive Briefing",
+    "meeting": "Meeting Minutes & Decisions",
+    "timeline": "Chronological Timeline & Topics",
+    "technical": "Technical Architecture Deep Dive",
+    "bullets": "Key Takeaways (Bullets)"
+}
+
+def summarize_with_ollama(
+    title: str,
+    text: str,
+    model_name: str = "sol-fast",
+    preset: str = "executive",
+    focus: Optional[str] = None
+) -> str:
+    """Query local Ollama chat API instance for a structured briefing summary."""
+    system_instruction = PRESET_INSTRUCTIONS.get(preset, PRESET_INSTRUCTIONS["executive"])
+    focus_directive = f"\n\nSpecial User Focus Directive: Prioritize and thoroughly detail any discussion or facts regarding: '{focus.strip()}'." if focus and focus.strip() else ""
+
+    user_prompt = f"Title: {title}\n\nTranscript:\n{text[:45000]}{focus_directive}\n\nSummary:"
     req_data = json.dumps({
         "model": model_name,
         "messages": [
@@ -50,7 +94,9 @@ class ObsidianService:
         transcription: Dict[str, Any],
         summary: str,
         vault_subfolder: str = "Transcripts",
-        custom_tags: Optional[List[str]] = None
+        custom_tags: Optional[List[str]] = None,
+        summary_preset: str = "executive",
+        summary_focus: Optional[str] = None
     ) -> Path:
         import re
         stt_label = transcription.get("model") or "unknown"
@@ -78,12 +124,18 @@ class ObsidianService:
 
         # Merge tags
         tags = ["media", "transcript", "ai-ingest", "obsidian-second-brain"]
+        if summary_preset and summary_preset != "executive":
+            tags.append(f"summary-{summary_preset}")
         if custom_tags:
             for t in custom_tags:
                 ct = re.sub(r"[^\w\-]", "", str(t).strip().lower().lstrip("#"))
                 if ct and ct not in tags:
                     tags.append(ct)
         tags_yaml = ", ".join(tags)
+
+        # Preset label for callout
+        callout_title = PRESET_TITLES.get(summary_preset, "Executive AI Summary")
+        focus_notice = f"> *(User focus: {summary_focus.strip()})*\n> \n" if summary_focus and summary_focus.strip() else ""
 
         # Format markdown note
         note_lines = [
@@ -99,8 +151,8 @@ class ObsidianService:
             "",
             f"# 🎙️ {clean_yaml_title}",
             "",
-            "> [!abstract] **Executive AI Summary**",
-            "> " + summary.replace("\n", "\n> "),
+            f"> [!abstract] **{callout_title}**",
+            focus_notice + "> " + summary.replace("\n", "\n> "),
             "",
             "---",
             "",

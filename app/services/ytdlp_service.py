@@ -23,6 +23,32 @@ class YtDlpService:
             return ydl.extract_info(url, download=False)
 
     @staticmethod
+    def probe_url(url: str) -> Dict[str, Any]:
+        ydl_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "skip_download": True,
+            "extract_flat": True,
+            "socket_timeout": 6,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            if not info:
+                raise ValueError("Could not extract metadata from URL")
+            duration = float(info.get("duration") or 0.0)
+            mins = int(duration // 60)
+            secs = int(duration % 60)
+            duration_formatted = f"{mins:02d}:{secs:02d}"
+            return {
+                "title": info.get("title") or "Unknown Title",
+                "uploader": info.get("uploader") or info.get("channel") or info.get("extractor_key") or "Unknown",
+                "duration": duration,
+                "duration_formatted": duration_formatted,
+                "thumbnail": info.get("thumbnail"),
+                "description": (info.get("description") or "")[:250] if info.get("description") else None,
+            }
+
+    @staticmethod
     def download(
         url: str,
         audio_only: bool = False,
@@ -71,6 +97,11 @@ class YtDlpService:
                 base_path = Path(filename).with_suffix(f".{codec}")
                 if base_path.exists():
                     filename = str(base_path)
+            elif not Path(filename).exists():
+                # If video+audio were merged (e.g. .webm + .m4a -> .mp4), verify target_format
+                alt_path = Path(filename).with_suffix(f".{target_format}")
+                if alt_path.exists():
+                    filename = str(alt_path)
 
             return {
                 "title": info.get("title", "video"),

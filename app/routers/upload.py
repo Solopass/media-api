@@ -147,3 +147,81 @@ def get_vault_note(path: str = Query(..., description="Path to markdown note in 
         "obsidian_link": obsidian_link,
         "content": content
     }
+
+def _extract_frontmatter(content: str) -> dict:
+    """Safely parse YAML frontmatter from markdown note content."""
+    if content.startswith("---"):
+        parts = content.split("---", 2)
+        if len(parts) >= 3:
+            try:
+                import yaml
+                data = yaml.safe_load(parts[1])
+                if isinstance(data, dict):
+                    return data
+            except Exception:
+                pass
+    return {}
+
+@router.get("/vault/recent")
+def get_recent_vault_notes(limit: int = Query(15, ge=1, le=100, description="Max recent notes to return")):
+    """Scan D:\\AI\\Vault\\Transcripts recursively for recent markdown transcript notes."""
+    search_dir = settings.vault_transcripts
+    if not search_dir.exists():
+        return {"notes": [], "total": 0}
+
+    candidates = []
+    try:
+        for p in search_dir.rglob("*.md"):
+            if p.is_file() and p.name != "Transcripts_Dashboard.md" and not p.name.startswith("."):
+                candidates.append(p)
+    except Exception:
+        pass
+
+    # Sort candidates by mtime descending
+    candidates.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True)
+    selected = candidates[:limit]
+
+    results = []
+    for p in selected:
+        try:
+            stat = p.stat()
+            header_chunk = ""
+            with open(p, "r", encoding="utf-8", errors="ignore") as f:
+                header_chunk = f.read(2048)
+            fm = _extract_frontmatter(header_chunk)
+            title = fm.get("title") or p.stem
+            date_val = str(fm.get("date") or datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"))
+            duration_val = str(fm.get("duration") or "")
+            tags_val = fm.get("tags") or []
+            if isinstance(tags_val, str):
+                tags_val = [t.strip() for t in tags_val.split(",") if t.strip()]
+
+            try:
+                rel_to_vault = p.resolve().relative_to(Path("/mnt/d/AI/Vault").resolve())
+            except Exception:
+                rel_to_vault = Path(f"Transcripts/{p.name}")
+
+            rel_posix = rel_to_vault.as_posix()
+            encoded_file = urllib.parse.quote(rel_posix)
+            obsidian_uri = f"obsidian://open?vault=Vault&file={encoded_file}"
+            parent_posix = rel_to_vault.parent.as_posix()
+            obsidian_link = f"[[{parent_posix}/{p.stem}]]" if parent_posix != "." else f"[[{p.stem}]]"
+
+            results.append({
+                "filename": p.name,
+                "stem": p.stem,
+                "file_path": str(p),
+                "windows_path": to_windows_path(p),
+                "title": title,
+                "date": date_val,
+                "duration": duration_val,
+                "tags": tags_val,
+                "modified_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                "obsidian_uri": obsidian_uri,
+                "obsidian_link": obsidian_link
+            })
+        except Exception:
+            continue
+
+    return {"notes": results, "total": len(candidates)}
+

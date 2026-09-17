@@ -896,7 +896,120 @@
       stroke-linejoin: round;
       flex-shrink: 0;
     }
+
+    /* URL Metadata Probe Card */
+    .media-probe-card {
+      display: flex;
+      gap: 0.75rem;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 0.5rem 0.75rem;
+      margin-top: 0.5rem;
+      align-items: center;
+      animation: slideUp 0.2s ease-out;
+    }
+    .probe-thumb {
+      width: 76px;
+      height: 48px;
+      object-fit: cover;
+      border-radius: 4px;
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+      flex-shrink: 0;
+    }
+    .probe-info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      flex: 1;
+      min-width: 0;
+    }
+    .probe-title {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .probe-meta {
+      display: flex;
+      gap: 0.75rem;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
+    /* A-B Looping Controls & Pills */
+    .btn-ab-loop {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      padding: 0.15rem 0.45rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.7rem;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    .btn-ab-loop:hover {
+      border-color: var(--primary);
+      color: var(--text-main);
+    }
+    .btn-ab-loop.active {
+      background: var(--primary) !important;
+      color: #000 !important;
+      font-weight: 700 !important;
+      border-color: var(--primary) !important;
+    }
+    .ab-loop-badge {
+      font-size: 0.7rem;
+      font-family: ui-monospace, Consolas, monospace;
+      color: var(--accent);
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+    }
+
+    /* Follow Playhead Button */
+    .btn-follow-scroll {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      border-radius: 3px;
+      padding: 0.15rem 0.45rem;
+      font-size: 0.7rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      transition: var(--transition);
+    }
+    .btn-follow-scroll.active {
+      background: rgba(6, 182, 212, 0.2);
+      color: var(--primary);
+      border-color: var(--primary);
+      font-weight: 600;
+    }
+    .btn-follow-scroll.paused {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--warning);
+      border-color: var(--warning);
+    }
+
+    /* Tag Pill */
+    .tag-pill {
+      font-size: 0.7rem;
+      background: rgba(6, 182, 212, 0.1);
+      border: 1px solid rgba(6, 182, 212, 0.25);
+      color: var(--primary);
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      display: inline-block;
+      margin-right: 0.25rem;
+    }
   </style>
+
 </head>
 <body>
 
@@ -926,9 +1039,16 @@
           <svg class="icon" viewBox="0 0 24 24"><path d="M22 12H2"></path><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path><line x1="6" y1="16" x2="6.01" y2="16"></line><line x1="10" y1="16" x2="10.01" y2="16"></line></svg>
           D: Drive: <strong id="val-storage">-- GB Free</strong>
         </div>
-        <div class="stat-chip">
+        <div class="stat-chip" title="Configure Idle Auto-Shutdown Timeout">
           <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
           Idle: <strong id="val-idle">--s</strong>
+          <select id="select-idle-timeout" style="background: transparent; border: 1px solid var(--border-subtle); color: var(--primary); font-size: 0.75rem; font-weight: 600; border-radius: 4px; padding: 0.1rem 0.3rem; margin-left: 0.3rem; cursor: pointer;">
+            <option value="60" selected style="background: var(--bg-surface-elevated); color: var(--text-main);">1m</option>
+            <option value="300" style="background: var(--bg-surface-elevated); color: var(--text-main);">5m</option>
+            <option value="900" style="background: var(--bg-surface-elevated); color: var(--text-main);">15m</option>
+            <option value="1800" style="background: var(--bg-surface-elevated); color: var(--text-main);">30m</option>
+            <option value="0" style="background: var(--bg-surface-elevated); color: var(--text-main);">Keep Awake</option>
+          </select>
         </div>
 
         <button class="btn-header-action" id="btn-refresh" title="Refresh status & telemetry">
@@ -985,6 +1105,10 @@
         Job Monitor
         <span class="tab-badge" id="badge-active-jobs">0</span>
       </button>
+      <button class="tab-btn" data-tab="tab-vault" id="btn-tab-vault">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+        Vault Explorer
+      </button>
     </nav>
 
     <!-- TAB 1: INGEST & OBSIDIAN NOTE -->
@@ -1015,6 +1139,17 @@
               <div class="upload-progress-container" id="ingest-upload-progress" style="display: none;">
                 <div class="upload-progress-fill" id="ingest-upload-progress-fill"></div>
                 <span class="upload-progress-text" id="ingest-upload-progress-text">Uploading...</span>
+              </div>
+              <!-- URL Metadata Probe Preview -->
+              <div class="media-probe-card" id="ingest-probe-card" style="display: none;">
+                <img class="probe-thumb" id="ingest-probe-thumb" src="" alt="Thumbnail" />
+                <div class="probe-info">
+                  <div class="probe-title" id="ingest-probe-title">Loading preview...</div>
+                  <div class="probe-meta">
+                    <span id="ingest-probe-uploader"></span>
+                    <span id="ingest-probe-duration"></span>
+                  </div>
+                </div>
               </div>
               <span class="hint">Supports YouTube/Web URLs, or drop/upload local media files directly to D:\AI\Cache\uploads</span>
             </div>
@@ -1068,6 +1203,24 @@
                 </select>
               </div>
             </div>
+
+            <div class="form-row" id="group-summary-options">
+              <div class="form-group">
+                <label for="ingest-summary-preset">Summary Preset</label>
+                <select id="ingest-summary-preset">
+                  <option value="executive" selected>Executive Brief (Default)</option>
+                  <option value="meeting">Action Items & Decisions</option>
+                  <option value="timeline">Chronological Timeline</option>
+                  <option value="technical">Technical Specs & Architecture</option>
+                  <option value="bullets">Quick Bulleted Digest</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="ingest-summary-focus">Topical Focus Guidance <span class="hint">(optional)</span></label>
+                <input type="text" id="ingest-summary-focus" placeholder="e.g. Focus on pricing, deadlines, architecture">
+              </div>
+            </div>
+
 
             <!-- Collapsible Vault Organization & Tags -->
             <button type="button" class="collapsible-trigger" id="btn-toggle-vault-org">
@@ -1135,6 +1288,11 @@
                       </div>
                       <button type="button" onclick="skipAudioPlayer('ingest-audio', -5)">-5s</button>
                       <button type="button" onclick="skipAudioPlayer('ingest-audio', 5)">+5s</button>
+                      <button type="button" class="btn-ab-loop" onclick="setLoopPoint('ingest-audio', 'A')" title="Set Loop Point A at current time">Set A</button>
+                      <button type="button" class="btn-ab-loop" onclick="setLoopPoint('ingest-audio', 'B')" title="Set Loop Point B at current time">Set B</button>
+                      <button type="button" class="btn-ab-loop" id="btn-loop-ingest-audio" onclick="toggleLoopAB('ingest-audio')" title="Toggle A-B Repeat Loop">🔁 Loop A-B</button>
+                      <button type="button" class="btn-ab-loop" onclick="clearLoopAB('ingest-audio')" title="Clear Loop Points">✕</button>
+                      <span class="ab-loop-badge" id="badge-loop-ingest-audio" style="display: none;"></span>
                     </div>
                   </div>
                   <audio id="ingest-audio" controls preload="metadata"></audio>
@@ -1179,12 +1337,14 @@
               <div id="ingest-segments-container" style="display: none;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; flex-wrap: wrap; gap: 0.4rem;">
                   <span class="hint">Timestamped Transcript (Click timestamp to seek)</span>
-                  <div style="display: flex; gap: 0.3rem;">
+                  <div style="display: flex; gap: 0.3rem; align-items: center;">
+                    <button type="button" class="btn-follow-scroll active" id="btn-follow-ingest" onclick="toggleFollowPlayhead('ingest')" title="Toggle playhead follow autoscroll">📜 Follow: ON</button>
                     <button type="button" class="btn-sm" id="btn-export-srt-ingest" title="Download .SRT subtitle file">📥 .SRT</button>
                     <button type="button" class="btn-sm" id="btn-export-vtt-ingest" title="Download .VTT WebVTT file">📥 .VTT</button>
                     <button type="button" class="btn-sm" id="btn-export-json-ingest" title="Download .JSON file">📥 .JSON</button>
                   </div>
                 </div>
+
                 <div class="transcript-search-bar" id="ingest-search-bar">
                   <svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                   <input type="text" class="search-input" id="ingest-search-input" placeholder="Search transcript keywords (Ctrl+F)...">
@@ -1259,6 +1419,7 @@
           <div class="card-header">
             <h3 class="card-title">Transcript & Segments</h3>
             <div style="display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap;" id="transcribe-actions">
+              <button type="button" class="btn-follow-scroll active" id="btn-follow-stt" style="display: none;" onclick="toggleFollowPlayhead('stt')" title="Toggle playhead follow autoscroll">📜 Follow: ON</button>
               <button type="button" class="btn-sm" id="btn-export-srt-stt" style="display: none;" title="Download .SRT subtitle file">📥 .SRT</button>
               <button type="button" class="btn-sm" id="btn-export-vtt-stt" style="display: none;" title="Download .VTT WebVTT file">📥 .VTT</button>
               <button type="button" class="btn-sm" id="btn-export-json-stt" style="display: none;" title="Download .JSON file">📥 .JSON</button>
@@ -1298,8 +1459,14 @@
                   </div>
                   <button type="button" onclick="skipAudioPlayer('transcribe-audio', -5)">-5s</button>
                   <button type="button" onclick="skipAudioPlayer('transcribe-audio', 5)">+5s</button>
+                  <button type="button" class="btn-ab-loop" onclick="setLoopPoint('transcribe-audio', 'A')" title="Set Loop Point A at current time">Set A</button>
+                  <button type="button" class="btn-ab-loop" onclick="setLoopPoint('transcribe-audio', 'B')" title="Set Loop Point B at current time">Set B</button>
+                  <button type="button" class="btn-ab-loop" id="btn-loop-transcribe-audio" onclick="toggleLoopAB('transcribe-audio')" title="Toggle A-B Repeat Loop">🔁 Loop A-B</button>
+                  <button type="button" class="btn-ab-loop" onclick="clearLoopAB('transcribe-audio')" title="Clear Loop Points">✕</button>
+                  <span class="ab-loop-badge" id="badge-loop-transcribe-audio" style="display: none;"></span>
                 </div>
               </div>
+
               <audio id="transcribe-audio" controls preload="metadata"></audio>
             </div>
           </div>
@@ -1336,6 +1503,17 @@
             <div class="form-group">
               <label for="download-url">Media URL</label>
               <input type="url" id="download-url" required placeholder="https://www.youtube.com/watch?v=...">
+              <!-- URL Metadata Probe Preview -->
+              <div class="media-probe-card" id="download-probe-card" style="display: none;">
+                <img class="probe-thumb" id="download-probe-thumb" src="" alt="Thumbnail" />
+                <div class="probe-info">
+                  <div class="probe-title" id="download-probe-title">Loading preview...</div>
+                  <div class="probe-meta">
+                    <span id="download-probe-uploader"></span>
+                    <span id="download-probe-duration"></span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div class="form-row">
@@ -1454,6 +1632,30 @@
               </div>
             </div>
 
+            <div class="form-row">
+              <div class="form-group">
+                <label class="switch-label">
+                  <span>Volume Normalization (EBU R128)</span>
+                  <label class="switch">
+                    <input type="checkbox" id="clip-normalize">
+                    <span class="slider"></span>
+                  </label>
+                </label>
+                <span class="hint">Normalizes speech volume using broadcast loudnorm filter</span>
+              </div>
+              <div class="form-group">
+                <label class="switch-label">
+                  <span>Speech-Optimized 16kHz WAV</span>
+                  <label class="switch">
+                    <input type="checkbox" id="clip-speech-opt">
+                    <span class="slider"></span>
+                  </label>
+                </label>
+                <span class="hint">Converts to 16kHz mono PCM for maximum STT speed</span>
+              </div>
+            </div>
+
+
             <button type="submit" class="btn-submit" id="btn-submit-clip">
               <svg class="icon" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"></circle></svg>
               Extract Segment
@@ -1496,10 +1698,16 @@
             </h2>
             <p class="card-desc">Live jobs, status telemetry, and generated Vault links</p>
           </div>
-          <button class="btn-header-action" id="btn-refresh-jobs">
-            <svg class="icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-            Refresh
-          </button>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button class="btn-header-action" id="btn-clear-jobs" title="Clear completed, failed, and cancelled jobs">
+              <svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+              Clear Finished
+            </button>
+            <button class="btn-header-action" id="btn-refresh-jobs">
+              <svg class="icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+              Refresh
+            </button>
+          </div>
         </div>
 
         <div class="table-container">
@@ -1513,18 +1721,71 @@
                 <th>Progress</th>
                 <th>Vault / Output</th>
                 <th>Time</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody id="jobs-tbody">
               <tr>
-                <td colspan="7" style="text-align: center; color: var(--text-dim); padding: 2rem;">Loading jobs...</td>
+                <td colspan="8" style="text-align: center; color: var(--text-dim); padding: 2rem;">Loading jobs...</td>
               </tr>
             </tbody>
           </table>
         </div>
       </div>
     </section>
+
+    <!-- TAB 6: VAULT EXPLORER -->
+    <section id="tab-vault" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+              Recent Obsidian Vault Transcripts
+            </h2>
+            <p class="card-desc">Browse past generated notes in D:\AI\Vault\Transcripts, copy wikilinks, or preview content</p>
+          </div>
+          <button class="btn-header-action" id="btn-refresh-vault">
+            <svg class="icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+            Refresh Notes
+          </button>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Title / Note</th>
+                <th>Date</th>
+                <th>Duration</th>
+                <th>Tags</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="vault-tbody">
+              <tr>
+                <td colspan="5" style="text-align: center; color: var(--text-dim); padding: 2rem;">Loading notes...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Note Preview Drawer inside Vault Explorer -->
+        <div id="vault-note-preview-drawer" class="note-preview-drawer" style="display: none; margin-top: 1rem;">
+          <div class="note-preview-header">
+            <span id="vault-preview-title" style="font-weight: 600; font-size: 0.85rem;">Markdown Note Preview</span>
+            <div style="display: flex; gap: 0.4rem;">
+              <a id="vault-preview-open-obsidian" class="btn-obsidian" href="#" target="_blank" style="padding: 0.2rem 0.6rem; font-size: 0.75rem;">Open in Obsidian</a>
+              <button type="button" class="btn-header-action" id="btn-vault-copy-note" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">Copy Markdown</button>
+              <button type="button" class="btn-header-action" id="btn-vault-close-preview" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">✕ Close</button>
+            </div>
+          </div>
+          <pre id="vault-preview-content" class="note-preview-content"></pre>
+        </div>
+      </div>
+    </section>
   </main>
+
 
   <div id="toast"></div>
 
@@ -1575,6 +1836,7 @@
         btn.classList.add("active");
         document.getElementById(btn.dataset.tab).classList.add("active");
         if (btn.dataset.tab === "tab-jobs") fetchJobs();
+        if (btn.dataset.tab === "tab-vault") fetchVaultNotes();
       });
     });
 
@@ -1600,8 +1862,10 @@
     // Summarize Switcher
     const ingestSummarize = document.getElementById("ingest-summarize");
     const llmModelGroup = document.getElementById("group-llm-model");
+    const summaryOptionsGroup = document.getElementById("group-summary-options");
     ingestSummarize.addEventListener("change", () => {
       llmModelGroup.style.display = ingestSummarize.checked ? "flex" : "none";
+      if (summaryOptionsGroup) summaryOptionsGroup.style.display = ingestSummarize.checked ? "flex" : "none";
     });
 
     // Fetch Health
@@ -1617,11 +1881,41 @@
         valStorage.textContent = data.storage ? `${data.storage.d_drive_free_gb} GB Free` : "D: Free";
         valIdle.textContent = `${data.idle_seconds}s / ${data.idle_timeout_seconds}s`;
         badgeActiveJobs.textContent = data.active_jobs || 0;
+
+        // Sync idle timeout select
+        const selectIdle = document.getElementById("select-idle-timeout");
+        if (selectIdle && document.activeElement !== selectIdle && data.idle_timeout_seconds !== undefined) {
+          const matchingOpt = Array.from(selectIdle.options).find(o => parseInt(o.value) === data.idle_timeout_seconds);
+          if (matchingOpt) selectIdle.value = matchingOpt.value;
+          else if (!data.auto_close || data.idle_timeout_seconds <= 0) selectIdle.value = "0";
+        }
       } catch (err) {
         statusDot.classList.add("offline");
         txtStatus.textContent = "Offline / Idle";
         valIdle.textContent = "--";
       }
+    }
+
+    // Idle timeout selector handler
+    const selectIdleEl = document.getElementById("select-idle-timeout");
+    if (selectIdleEl) {
+      selectIdleEl.addEventListener("change", async (e) => {
+        const val = parseInt(e.target.value);
+        const autoClose = val > 0;
+        try {
+          const res = await fetch("/api/v1/config/idle-timeout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ timeout_seconds: val, auto_close: autoClose })
+          });
+          if (res.ok) {
+            showToast(val === 0 ? "Idle shutdown disabled (Keep Awake)" : `Idle timeout set to ${val}s`);
+            fetchHealth();
+          }
+        } catch (err) {
+          showToast("Failed to update idle timeout");
+        }
+      });
     }
 
     // Fetch Ollama Models
@@ -1660,10 +1954,42 @@
       }
     }
 
+    async function cancelJob(jobId) {
+      if (!confirm(`Cancel job ${jobId.substring(0, 8)}?`)) return;
+      try {
+        const res = await fetch(`/api/v1/jobs/${jobId}/cancel`, { method: "POST" });
+        if (res.ok) {
+          showToast(`Cancelled job ${jobId.substring(0, 8)}`);
+          fetchJobs();
+          fetchHealth();
+        } else {
+          showToast("Failed to cancel job");
+        }
+      } catch (err) {
+        showToast("Error cancelling job: " + err.message);
+      }
+    }
+
+    async function clearFinishedJobs() {
+      try {
+        const res = await fetch("/api/v1/jobs/clear", { method: "POST" });
+        if (res.ok) {
+          const data = await res.json();
+          showToast(`Cleared ${data.cleared_count || 0} finished jobs`);
+          fetchJobs();
+          fetchHealth();
+        } else {
+          showToast("Failed to clear finished jobs");
+        }
+      } catch (err) {
+        showToast("Error clearing jobs: " + err.message);
+      }
+    }
+
     function renderJobsTable(jobs) {
       const tbody = document.getElementById("jobs-tbody");
       if (!jobs || jobs.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-dim); padding: 2rem;">No jobs recorded yet.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-dim); padding: 2rem;">No jobs recorded yet.</td></tr>';
         return;
       }
       tbody.innerHTML = jobs.map(j => {
@@ -1679,6 +2005,10 @@
         const pillClass = j.status || "queued";
         const shortSource = (j.source || "").length > 40 ? j.source.substring(0, 38) + "..." : j.source;
         const createdAt = j.created_at ? new Date(j.created_at).toLocaleTimeString() : "-";
+        const isCancelable = j.status === "queued" || j.status === "running";
+        const actionHtml = isCancelable
+          ? `<button type="button" class="btn-sm" style="color: var(--danger); border-color: rgba(239, 68, 68, 0.4); padding: 0.15rem 0.4rem; font-size: 0.7rem;" onclick="cancelJob('${j.job_id}')" title="Cancel this job">✕ Cancel</button>`
+          : `<span style="color: var(--text-dim);">-</span>`;
 
         return `
           <tr>
@@ -1696,10 +2026,12 @@
             </td>
             <td>${outputLink}</td>
             <td style="color: var(--text-dim);">${createdAt}</td>
+            <td>${actionHtml}</td>
           </tr>
         `;
       }).join("");
     }
+
 
     // Generic Job Poller
     function pollJob(jobId, onProgress, onComplete, onError) {
@@ -1856,12 +2188,123 @@
       audioEl.addEventListener("timeupdate", currentSegmentStopHandler);
     }
 
+    // A-B Repeat Looping
+    const abLoops = {
+      "ingest-audio": { a: null, b: null, active: false },
+      "transcribe-audio": { a: null, b: null, active: false }
+    };
+
+    function setLoopPoint(playerId, point) {
+      const player = document.getElementById(playerId);
+      if (!player) return;
+      lastInteractedAudio = player;
+      if (!abLoops[playerId]) abLoops[playerId] = { a: null, b: null, active: false };
+      const cur = player.currentTime;
+      if (point === "A") {
+        abLoops[playerId].a = cur;
+        showToast(`Set Point A: ${formatTime(cur)}`);
+      } else {
+        abLoops[playerId].b = cur;
+        showToast(`Set Point B: ${formatTime(cur)}`);
+      }
+      updateABLoopUI(playerId);
+    }
+
+    function toggleLoopAB(playerId) {
+      const player = document.getElementById(playerId);
+      if (!player) return;
+      lastInteractedAudio = player;
+      if (!abLoops[playerId]) abLoops[playerId] = { a: null, b: null, active: false };
+      const loop = abLoops[playerId];
+      if (loop.a === null || loop.b === null) {
+        return showToast("Set both Point A and Point B first");
+      }
+      if (loop.b <= loop.a) {
+        return showToast("Point B must be after Point A");
+      }
+      loop.active = !loop.active;
+      if (loop.active) {
+        player.currentTime = loop.a;
+        player.play();
+        showToast("Loop A-B Active");
+      } else {
+        showToast("Loop A-B Disabled");
+      }
+      updateABLoopUI(playerId);
+    }
+
+    function clearLoopAB(playerId) {
+      if (abLoops[playerId]) {
+        abLoops[playerId] = { a: null, b: null, active: false };
+      }
+      updateABLoopUI(playerId);
+      showToast("Cleared A-B Loop");
+    }
+
+    function updateABLoopUI(playerId) {
+      const loop = abLoops[playerId];
+      const badge = document.getElementById(`badge-loop-${playerId}`);
+      const toggleBtn = document.getElementById(`btn-loop-${playerId}`);
+      if (!badge || !toggleBtn) return;
+      if (!loop || (loop.a === null && loop.b === null)) {
+        badge.style.display = "none";
+        toggleBtn.classList.remove("active");
+        return;
+      }
+      badge.style.display = "inline-block";
+      const aStr = loop.a !== null ? formatTime(loop.a) : "--:--";
+      const bStr = loop.b !== null ? formatTime(loop.b) : "--:--";
+      badge.textContent = `A: ${aStr} | B: ${bStr}${loop.active ? " (Looping)" : ""}`;
+      toggleBtn.classList.toggle("active", loop.active);
+    }
+
+    // Follow-Playhead Transcript Auto-Scroll with manual scroll pause
+    const followPlayhead = {
+      "ingest": true,
+      "stt": true
+    };
+
+    function toggleFollowPlayhead(tab) {
+      followPlayhead[tab] = !followPlayhead[tab];
+      updateFollowBtnUI(tab, followPlayhead[tab] ? "ON" : "OFF");
+      if (followPlayhead[tab]) {
+        const activeRow = document.querySelector(`#${tab === "ingest" ? "ingest-segments-list" : "transcribe-segments-list"} .segment-row.active-playing`);
+        if (activeRow) activeRow.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        showToast("Follow Playhead: ON");
+      } else {
+        showToast("Follow Playhead: OFF");
+      }
+    }
+
+    function updateFollowBtnUI(tab, state) {
+      const btn = document.getElementById(tab === "ingest" ? "btn-follow-ingest" : "btn-follow-stt");
+      if (!btn) return;
+      btn.className = `btn-follow-scroll ${state === "ON" ? "active" : (state === "PAUSED" ? "paused" : "")}`;
+      btn.textContent = `📜 Follow: ${state}`;
+    }
+
+    function attachScrollListener(listEl, tab) {
+      if (!listEl || listEl._hasScrollListener) return;
+      listEl._hasScrollListener = true;
+      const onUserScroll = () => {
+        if (followPlayhead[tab]) {
+          followPlayhead[tab] = false;
+          updateFollowBtnUI(tab, "PAUSED");
+        }
+      };
+      listEl.addEventListener("wheel", onUserScroll, { passive: true });
+      listEl.addEventListener("touchmove", onUserScroll, { passive: true });
+    }
+
     function renderInteractiveSegments(containerEl, audioEl, segments) {
       containerEl.innerHTML = "";
       if (!segments || segments.length === 0) {
         containerEl.innerHTML = '<div style="color: var(--text-dim); padding: 0.5rem;">No timestamped segments available.</div>';
         return;
       }
+
+      const tabType = audioEl.id.startsWith("ingest") ? "ingest" : "stt";
+      attachScrollListener(containerEl, tabType);
 
       segments.forEach((seg, idx) => {
         const row = document.createElement("div");
@@ -1900,9 +2343,20 @@
         containerEl.appendChild(row);
       });
 
-      // Synchronize playback with transcript row highlighting
+      // Synchronize playback with transcript row highlighting and A-B looping
       audioEl.ontimeupdate = () => {
         const cur = audioEl.currentTime;
+
+        // Check A-B Repeat Loop
+        const loop = abLoops[audioEl.id];
+        if (loop && loop.active && loop.a !== null && loop.b !== null && loop.b > loop.a) {
+          if (cur >= loop.b || cur < loop.a) {
+            audioEl.currentTime = loop.a;
+            audioEl.play();
+            return;
+          }
+        }
+
         segments.forEach((seg, idx) => {
           const row = document.getElementById(`seg-${audioEl.id}-${idx}`);
           if (row) {
@@ -1911,7 +2365,9 @@
             if (cur >= sStart && cur <= sEnd) {
               if (!row.classList.contains("active-playing")) {
                 row.classList.add("active-playing");
-                row.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                if (followPlayhead[tabType]) {
+                  row.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                }
               }
             } else {
               row.classList.remove("active-playing");
@@ -1920,6 +2376,7 @@
         });
       };
     }
+
 
     // Keyword Search & Highlight Controller
     function setupTranscriptSearch(searchInputId, countBadgeId, containerId, audioEl, prevBtnId, nextBtnId, filterToggleId) {
@@ -2305,7 +2762,7 @@
 
         const summaryTextEl = document.getElementById("ingest-summary-text");
         if (summaryTextEl && data.content) {
-          const match = data.content.match(/> \[!abstract\] \*\*Executive AI Summary\*\*([\s\S]*?)(?:---|## 📋 Metadata|$)/);
+          const match = data.content.match(/> \[!abstract\] \*\*.*?\*\*([\s\S]*?)(?:---|## 📋 Metadata|$)/);
           if (match) {
             summaryTextEl.textContent = match[1].replace(/^> ?/gm, "").trim();
           }
@@ -2333,6 +2790,8 @@
 
       const subfolderVal = document.getElementById("ingest-subfolder") ? document.getElementById("ingest-subfolder").value.trim() || "Transcripts" : "Transcripts";
       const tagsVal = document.getElementById("ingest-tags") ? document.getElementById("ingest-tags").value.split(",").map(t => t.trim()).filter(Boolean) : [];
+      const presetVal = document.getElementById("ingest-summary-preset") ? document.getElementById("ingest-summary-preset").value : "executive";
+      const focusVal = document.getElementById("ingest-summary-focus") ? (document.getElementById("ingest-summary-focus").value.trim() || null) : null;
 
       const body = {
         source: document.getElementById("ingest-source").value.trim(),
@@ -2342,6 +2801,8 @@
         model_size: document.getElementById("ingest-whisper-size").value,
         summarize: document.getElementById("ingest-summarize").checked,
         llm_model: document.getElementById("ingest-llm-model").value,
+        summary_preset: presetVal,
+        summary_focus: focusVal,
         vault_subfolder: subfolderVal,
         tags: tagsVal
       };
@@ -2538,6 +2999,8 @@
                   const vttBtn = document.getElementById("btn-export-vtt-stt");
                   const jsonBtn = document.getElementById("btn-export-json-stt");
                   const searchBar = document.getElementById("transcribe-search-bar");
+                  const followBtn = document.getElementById("btn-follow-stt");
+                  if (followBtn) followBtn.style.display = "inline-flex";
                   if (srtBtn) srtBtn.style.display = "inline-flex";
                   if (vttBtn) vttBtn.style.display = "inline-flex";
                   if (jsonBtn) jsonBtn.style.display = "inline-flex";
@@ -2687,7 +3150,9 @@
         start_time: document.getElementById("clip-start").value.trim(),
         end_time: document.getElementById("clip-end").value.trim(),
         format: document.getElementById("clip-format").value,
-        re_encode: document.getElementById("clip-reencode").checked
+        re_encode: document.getElementById("clip-reencode").checked,
+        normalize_audio: document.getElementById("clip-normalize") ? document.getElementById("clip-normalize").checked : false,
+        speech_optimized: document.getElementById("clip-speech-opt") ? document.getElementById("clip-speech-opt").checked : false
       };
 
       btn.disabled = true;
@@ -2819,6 +3284,138 @@
       showToast("Refreshed job queue");
     });
 
+    const btnClearJobs = document.getElementById("btn-clear-jobs");
+    if (btnClearJobs) {
+      btnClearJobs.addEventListener("click", clearFinishedJobs);
+    }
+
+    // Vault Explorer Functions
+    async function fetchVaultNotes() {
+      const tbody = document.getElementById("vault-tbody");
+      if (!tbody) return;
+      try {
+        const res = await fetch("/api/v1/vault/recent?limit=25");
+        if (!res.ok) return;
+        const data = await res.json();
+        const notes = data.notes || [];
+        if (notes.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-dim); padding: 2rem;">No transcript notes found in D:\\AI\\Vault\\Transcripts yet.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = notes.map(n => {
+          const titleEsc = (n.title || n.stem).replace(/"/g, "&quot;");
+          const tagsHtml = (n.tags && n.tags.length > 0)
+            ? n.tags.map(t => `<span class="tag-pill">#${t}</span>`).join("")
+            : '<span style="color: var(--text-dim);">-</span>';
+          return `
+            <tr>
+              <td>
+                <div style="font-weight: 600; color: var(--text-main); margin-bottom: 0.2rem;">${titleEsc}</div>
+                <span class="vault-link-badge" onclick="navigator.clipboard.writeText('${n.obsidian_link}'); showToast('Copied ${n.obsidian_link}');" title="Click to copy wikilink">${n.obsidian_link}</span>
+              </td>
+              <td style="color: var(--text-dim); font-size: 0.8rem; white-space: nowrap;">${n.date || "-"}</td>
+              <td style="color: var(--primary); font-family: ui-monospace; font-size: 0.8rem; white-space: nowrap;">${n.duration || "-"}</td>
+              <td>${tagsHtml}</td>
+              <td style="white-space: nowrap;">
+                <div style="display: flex; gap: 0.35rem; align-items: center;">
+                  <a class="btn-obsidian" href="${n.obsidian_uri}" target="_blank" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;" title="Open in Obsidian Desktop">Open</a>
+                  <button type="button" class="btn-sm" onclick="previewVaultNote('${encodeURIComponent(n.file_path)}', '${titleEsc.replace(/'/g, "\\'")}', '${n.obsidian_uri}')" title="Preview markdown note">Preview</button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join("");
+      } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--danger); padding: 1.5rem;">Failed to load vault notes.</td></tr>';
+      }
+    }
+
+    async function previewVaultNote(encodedPath, title, obsidianUri) {
+      try {
+        const res = await fetch(`/api/v1/vault/note?path=${encodedPath}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const drawer = document.getElementById("vault-note-preview-drawer");
+        const titleEl = document.getElementById("vault-preview-title");
+        const contentEl = document.getElementById("vault-preview-content");
+        const openEl = document.getElementById("vault-preview-open-obsidian");
+        const copyBtn = document.getElementById("btn-vault-copy-note");
+        const closeBtn = document.getElementById("btn-vault-close-preview");
+
+        if (titleEl) titleEl.textContent = `Note: ${data.filename || title}`;
+        if (contentEl) contentEl.textContent = data.content || "";
+        if (openEl) openEl.href = obsidianUri || data.obsidian_uri;
+        if (copyBtn) {
+          copyBtn.onclick = () => {
+            navigator.clipboard.writeText(data.content || "");
+            showToast("Copied note markdown!");
+          };
+        }
+        if (closeBtn) {
+          closeBtn.onclick = () => { drawer.style.display = "none"; };
+        }
+        if (drawer) {
+          drawer.style.display = "flex";
+          drawer.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+      } catch (e) {
+        showToast("Failed to preview note: " + e.message);
+      }
+    }
+
+    const btnRefreshVault = document.getElementById("btn-refresh-vault");
+    if (btnRefreshVault) {
+      btnRefreshVault.addEventListener("click", () => {
+        fetchVaultNotes();
+        showToast("Refreshed vault notes");
+      });
+    }
+
+    // URL Metadata Pre-fetch Watcher
+    function setupUrlProbe(inputId, cardId, thumbId, titleId, uploaderId, durationId) {
+      const input = document.getElementById(inputId);
+      const card = document.getElementById(cardId);
+      const thumb = document.getElementById(thumbId);
+      const title = document.getElementById(titleId);
+      const uploader = document.getElementById(uploaderId);
+      const duration = document.getElementById(durationId);
+      if (!input || !card) return;
+
+      let timer = null;
+      input.addEventListener("input", () => {
+        clearTimeout(timer);
+        const val = input.value.trim();
+        if (!val.startsWith("http://") && !val.startsWith("https://")) {
+          card.style.display = "none";
+          return;
+        }
+        timer = setTimeout(async () => {
+          try {
+            const res = await fetch(`/api/v1/media/probe?url=${encodeURIComponent(val)}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (title) title.textContent = data.title || "Unknown Title";
+              if (uploader) uploader.textContent = "👤 " + (data.uploader || "Unknown");
+              if (duration) duration.textContent = "⏱️ " + (data.duration_formatted || "00:00");
+              if (thumb) {
+                if (data.thumbnail) {
+                  thumb.src = data.thumbnail;
+                  thumb.style.display = "block";
+                } else {
+                  thumb.style.display = "none";
+                }
+              }
+              card.style.display = "flex";
+            } else {
+              card.style.display = "none";
+            }
+          } catch (e) {
+            card.style.display = "none";
+          }
+        }, 500);
+      });
+    }
+
     document.getElementById("btn-shutdown").addEventListener("click", async () => {
       if (!confirm("Are you sure you want to shut down media-api? This releases all host threads and RAM immediately. It will wake back up on your next request.")) return;
       try {
@@ -2840,6 +3437,9 @@
     setupUploadTarget("transcribe-upload-btn", "transcribe-file-input", "transcribe-source", "transcribe-upload-progress", "transcribe-upload-progress-fill", "transcribe-upload-progress-text");
     setupUploadTarget("clip-upload-btn", "clip-file-input", "clip-source", "clip-upload-progress", "clip-upload-progress-fill", "clip-upload-progress-text");
 
+    setupUrlProbe("ingest-source", "ingest-probe-card", "ingest-probe-thumb", "ingest-probe-title", "ingest-probe-uploader", "ingest-probe-duration");
+    setupUrlProbe("download-url", "download-probe-card", "download-probe-thumb", "download-probe-title", "download-probe-uploader", "download-probe-duration");
+
     fetchHealth();
     fetchModels();
     fetchJobs();
@@ -2847,3 +3447,4 @@
   </script>
 </body>
 </html>
+

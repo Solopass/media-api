@@ -16,24 +16,22 @@ from starlette.staticfiles import StaticFiles
 
 from app.config import settings
 from app.queue.manager import job_manager
-from app.models.schemas import ShutdownRequest, ShutdownResponse
+from app.models.schemas import ShutdownRequest, ShutdownResponse, ConfigIdleRequest
 from app.routers import media, transcribe, ingest, jobs, upload
 
 logger = logging.getLogger("media_api")
 
 async def idle_watchdog():
     """Monitors activity and automatically shuts down when idle to free all host RAM and threads."""
-    if not settings.auto_close or settings.idle_timeout_seconds <= 0:
-        logger.info("[watchdog] Auto-close is disabled.")
-        return
-
     logger.info(
-        f"[watchdog] Active: Server will auto-close after {settings.idle_timeout_seconds}s "
-        f"of inactivity with 0 active jobs."
+        f"[watchdog] Started: auto_close={settings.auto_close}, "
+        f"timeout={settings.idle_timeout_seconds}s."
     )
     while True:
         try:
             await asyncio.sleep(5)
+            if not settings.auto_close or settings.idle_timeout_seconds <= 0:
+                continue
             active_jobs = job_manager.get_active_job_count()
             idle_duration = time.time() - job_manager.get_last_activity_time()
             if active_jobs == 0 and idle_duration >= settings.idle_timeout_seconds:
@@ -148,6 +146,19 @@ async def shutdown_server(req: ShutdownRequest = ShutdownRequest()):
         active_jobs=active_jobs,
         scheduled=True
     )
+
+@app.post("/api/v1/config/idle-timeout", tags=["System & Lifecycle"])
+def update_idle_timeout(req: ConfigIdleRequest):
+    """Dynamically adjust idle shutdown timeout and auto-close state."""
+    settings.auto_close = req.auto_close
+    settings.idle_timeout_seconds = req.timeout_seconds
+    job_manager.mark_activity()
+    return {
+        "status": "ok",
+        "auto_close": settings.auto_close,
+        "idle_timeout_seconds": settings.idle_timeout_seconds,
+        "message": f"Idle timeout updated to {settings.idle_timeout_seconds}s (auto_close: {settings.auto_close})"
+    }
 
 @app.get("/ui", tags=["GUI"])
 def web_ui():

@@ -9,14 +9,19 @@ from app.queue.manager import job_manager
 from app.services.ytdlp_service import YtDlpService
 from app.services.ffmpeg_service import FFmpegService
 from app.services import stt_service
-from app.services.obsidian_service import ObsidianService
 from app.config import normalize_path
 
 router = APIRouter(prefix="/api/v1", tags=["Speech-To-Text Transcription"])
 
 def run_transcribe_task(job_id: str, req: TranscribeRequest):
+    if job_manager.is_cancelled(job_id):
+        return
     job_manager.update_job(job_id, status=JobStatus.RUNNING)
     try:
+
+        if job_manager.is_cancelled(job_id):
+            return
+
         # Handle online media URL
         if req.source.startswith("http://") or req.source.startswith("https://"):
             job_manager.update_job(job_id, progress_percent=10.0, speed="Downloading...")
@@ -30,12 +35,19 @@ def run_transcribe_task(job_id: str, req: TranscribeRequest):
         if not source_path.exists():
             raise FileNotFoundError(f"Source media not found: {source_path}")
 
+        if job_manager.is_cancelled(job_id):
+            return
+
         # Extract audio if it is a video container
-        if source_path.suffix.lower() in [".mp4", ".mkv", ".webm", ".mov", ".avi"]:
+        video_exts = {".mp4", ".mkv", ".webm", ".mov", ".avi", ".flv", ".ts", ".wmv"}
+        if source_path.suffix.lower() in video_exts:
             job_manager.update_job(job_id, progress_percent=30.0, speed="Extracting Audio...")
             audio_path = FFmpegService.extract_audio(source_path)
         else:
             audio_path = source_path
+
+        if job_manager.is_cancelled(job_id):
+            return
 
         engine = stt_service.resolve_engine(req.engine, req.language)
         job_manager.update_job(job_id, progress_percent=50.0, speed=f"Transcribing with {engine}...")
@@ -45,6 +57,9 @@ def run_transcribe_task(job_id: str, req: TranscribeRequest):
             model_size=req.model_size,
             language=req.language
         )
+
+        if job_manager.is_cancelled(job_id):
+            return
 
         out_txt = audio_path.with_suffix(".txt")
         with open(out_txt, "w", encoding="utf-8") as f:

@@ -62,6 +62,8 @@ class JobQueueManager:
         with self._lock:
             if job_id in self.jobs:
                 job = self.jobs[job_id]
+                if job.status == JobStatus.CANCELLED:
+                    return
                 for k, v in kwargs.items():
                     if hasattr(job, k):
                         setattr(job, k, v)
@@ -76,6 +78,35 @@ class JobQueueManager:
             terminal_keys = [k for k, v in self.jobs.items() if v.status in terminal_statuses]
             for k in terminal_keys[:len(self.jobs) - max_history]:
                 self.jobs.pop(k, None)
+
+    def cancel_job(self, job_id: str) -> bool:
+        """Cancel a queued or running job."""
+        with self._lock:
+            if job_id in self.jobs:
+                job = self.jobs[job_id]
+                if job.status in (JobStatus.QUEUED, JobStatus.RUNNING):
+                    job.status = JobStatus.CANCELLED
+                    job.error = "Job cancelled by user"
+                    job.updated_at = datetime.now().isoformat()
+                    self._last_activity = time.time()
+                    return True
+        return False
+
+    def is_cancelled(self, job_id: str) -> bool:
+        """Check if a job has been cancelled."""
+        with self._lock:
+            job = self.jobs.get(job_id)
+            return job is not None and job.status == JobStatus.CANCELLED
+
+    def clear_completed_jobs(self) -> int:
+        """Clear all terminal (completed, failed, cancelled) jobs from memory."""
+        with self._lock:
+            terminal_statuses = {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}
+            to_remove = [k for k, v in self.jobs.items() if v.status in terminal_statuses]
+            for k in to_remove:
+                self.jobs.pop(k, None)
+            self._last_activity = time.time()
+            return len(to_remove)
 
     def get_job(self, job_id: str) -> Optional[JobDetail]:
         with self._lock:
