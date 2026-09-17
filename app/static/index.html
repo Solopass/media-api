@@ -425,6 +425,191 @@
       background: rgba(16, 185, 129, 0.2);
     }
 
+    /* Upload Input Target */
+    .input-with-upload {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .input-with-upload input[type="text"] {
+      flex: 1;
+    }
+    .upload-btn-target {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.65rem 0.9rem;
+      background: var(--bg-surface-elevated);
+      border: 1px dashed var(--border-subtle);
+      border-radius: var(--radius-md);
+      color: var(--text-main);
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      position: relative;
+      user-select: none;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .upload-btn-target:hover {
+      border-color: var(--primary);
+      background: var(--bg-surface-hover);
+    }
+    .upload-btn-target.drag-over {
+      border-color: var(--primary);
+      border-style: solid;
+      background: rgba(6, 182, 212, 0.18);
+      box-shadow: 0 0 14px var(--primary-glow);
+      transform: scale(1.02);
+    }
+    .hidden-file-input {
+      display: none;
+    }
+    .upload-progress-container {
+      height: 18px;
+      background: var(--bg-surface-elevated);
+      border-radius: 9999px;
+      position: relative;
+      overflow: hidden;
+      margin-top: 0.4rem;
+      display: flex;
+      align-items: center;
+      border: 1px solid var(--border-subtle);
+    }
+    .upload-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      width: 0%;
+      transition: width 0.2s ease;
+    }
+    .upload-progress-text {
+      position: absolute;
+      width: 100%;
+      text-align: center;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    }
+
+    /* Interactive Audio Player */
+    .audio-player-card {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 0.75rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .audio-player-card audio {
+      width: 100%;
+      height: 38px;
+      border-radius: var(--radius-sm);
+    }
+    .audio-player-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+    .audio-player-controls {
+      display: flex;
+      gap: 0.4rem;
+      align-items: center;
+    }
+    .audio-player-controls button {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 0.2rem 0.5rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.72rem;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    .audio-player-controls button:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+    .ts-pill {
+      background: rgba(6, 182, 212, 0.12);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      color: var(--primary);
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+      user-select: none;
+    }
+    .ts-pill:hover {
+      background: var(--primary);
+      color: #000;
+    }
+    .segment-row.active-playing {
+      border-left-color: var(--accent);
+      background: rgba(16, 185, 129, 0.12);
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.15);
+    }
+
+    /* Obsidian Actions & Note Preview */
+    .btn-obsidian {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: linear-gradient(135deg, #7c3aed, #4f46e5);
+      color: #ffffff !important;
+      border: none;
+      padding: 0.45rem 0.85rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
+      transition: var(--transition);
+    }
+    .btn-obsidian:hover {
+      background: linear-gradient(135deg, #6d28d9, #4338ca);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(124, 58, 237, 0.45);
+    }
+    .note-preview-drawer {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 1rem;
+      margin-top: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .note-preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 0.5rem;
+    }
+    .note-preview-content {
+      font-size: 0.82rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      font-family: ui-monospace, Consolas, monospace;
+      color: var(--text-main);
+      background: var(--bg-surface);
+      padding: 0.75rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-subtle);
+      overflow-x: auto;
+    }
+
     /* Segment Table & Text Output */
     .transcript-viewer {
       display: flex;
@@ -626,8 +811,19 @@
           <form id="form-ingest">
             <div class="form-group">
               <label for="ingest-source">Media Source (Web URL or Local Path)</label>
-              <input type="text" id="ingest-source" required placeholder="https://youtube.com/watch?v=... or D:\rec\meeting.wav">
-              <span class="hint">Supports YouTube, podcasts, Twitch, or local .wav, .mp3, .mp4 on D:\</span>
+              <div class="input-with-upload">
+                <input type="text" id="ingest-source" required placeholder="https://youtube.com/watch?v=... or D:\rec\meeting.wav">
+                <div class="upload-btn-target" id="ingest-upload-btn" title="Click to choose file, or drag & drop directly over this button">
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                  <span class="upload-btn-text">Upload</span>
+                  <input type="file" id="ingest-file-input" class="hidden-file-input" accept="audio/*,video/*">
+                </div>
+              </div>
+              <div class="upload-progress-container" id="ingest-upload-progress" style="display: none;">
+                <div class="upload-progress-fill" id="ingest-upload-progress-fill"></div>
+                <span class="upload-progress-text" id="ingest-upload-progress-text">Uploading...</span>
+              </div>
+              <span class="hint">Supports YouTube/Web URLs, or drop/upload local media files directly to D:\AI\Cache\uploads</span>
             </div>
 
             <div class="form-row">
@@ -711,18 +907,58 @@
             </div>
 
             <div class="result-box" id="ingest-finished-box" style="display: none;">
-              <div>
-                <span class="hint">Obsidian Vault Note</span>
-                <div style="margin-top: 0.35rem;">
-                  <span class="vault-link-badge" id="ingest-vault-link" title="Click to copy wikilink">
-                    <svg class="icon" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-                    <span id="ingest-vault-link-text">[[Transcripts/...]]</span>
-                  </span>
+              <!-- Embedded Audio Player with Seek -->
+              <div id="ingest-audio-container" style="display: none; margin-bottom: 0.5rem;">
+                <div class="audio-player-card">
+                  <div class="audio-player-header">
+                    <span>🎵 Ingested Audio (Click timestamps below to seek)</span>
+                    <div class="audio-player-controls">
+                      <button type="button" onclick="skipAudioPlayer('ingest-audio', -5)">-5s</button>
+                      <button type="button" onclick="skipAudioPlayer('ingest-audio', 5)">+5s</button>
+                    </div>
+                  </div>
+                  <audio id="ingest-audio" controls preload="metadata"></audio>
                 </div>
               </div>
+
+              <!-- Obsidian Actions Toolbar -->
+              <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
+                <a id="ingest-open-obsidian" class="btn-obsidian" href="#" target="_blank" title="Launch note directly in Obsidian Desktop">
+                  <svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                  <span>Open in Obsidian</span>
+                </a>
+                <span class="vault-link-badge" id="ingest-vault-link" title="Click to copy wikilink">
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                  <span id="ingest-vault-link-text">[[Transcripts/...]]</span>
+                </span>
+                <button type="button" class="btn-header-action" id="btn-toggle-note-preview" title="Preview full markdown note">
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  Preview Note
+                </button>
+                <button type="button" class="btn-header-action" id="btn-copy-note-markdown" title="Copy full markdown content">
+                  <svg class="icon" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  Copy Note
+                </button>
+              </div>
+
+              <!-- Collapsible In-Page Note Preview Drawer -->
+              <div id="ingest-note-preview-drawer" class="note-preview-drawer" style="display: none;">
+                <div class="note-preview-header">
+                  <span id="ingest-preview-title" style="font-weight: 600; font-size: 0.85rem;">Markdown Note Preview</span>
+                  <button type="button" class="btn-header-action" id="btn-close-note-preview" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">✕ Close</button>
+                </div>
+                <pre id="ingest-preview-content" class="note-preview-content"></pre>
+              </div>
+
               <div id="ingest-summary-container">
                 <span class="hint">Executive Summary</span>
-                <div id="ingest-summary-text" style="white-space: pre-wrap; font-size: 0.8rem; background: var(--bg-surface); padding: 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); max-height: 250px; overflow-y: auto;"></div>
+                <div id="ingest-summary-text" style="white-space: pre-wrap; font-size: 0.8rem; background: var(--bg-surface); padding: 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); max-height: 200px; overflow-y: auto;"></div>
+              </div>
+
+              <!-- Timestamped Transcript Segments with Audio Sync -->
+              <div id="ingest-segments-container" style="display: none;">
+                <span class="hint">Timestamped Transcript (Click timestamp to jump audio)</span>
+                <div class="transcript-viewer" id="ingest-segments-list" style="max-height: 250px; margin-top: 0.35rem;"></div>
               </div>
             </div>
           </div>
@@ -747,7 +983,18 @@
           <form id="form-transcribe">
             <div class="form-group">
               <label for="transcribe-source">Audio or Video Path / URL</label>
-              <input type="text" id="transcribe-source" required placeholder="D:\AI\Cache\stt-test\meeting.wav">
+              <div class="input-with-upload">
+                <input type="text" id="transcribe-source" required placeholder="D:\AI\Cache\stt-test\meeting.wav or https://...">
+                <div class="upload-btn-target" id="transcribe-upload-btn" title="Click to choose file, or drag & drop directly over this button">
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                  <span class="upload-btn-text">Upload</span>
+                  <input type="file" id="transcribe-file-input" class="hidden-file-input" accept="audio/*,video/*">
+                </div>
+              </div>
+              <div class="upload-progress-container" id="transcribe-upload-progress" style="display: none;">
+                <div class="upload-progress-fill" id="transcribe-upload-progress-fill"></div>
+                <span class="upload-progress-text" id="transcribe-upload-progress-text">Uploading...</span>
+              </div>
             </div>
 
             <div class="form-row">
@@ -795,6 +1042,20 @@
             </div>
             <div class="progress-track">
               <div class="progress-fill" id="transcribe-progress-bar"></div>
+            </div>
+          </div>
+
+          <!-- Audio Player with range support -->
+          <div id="transcribe-audio-container" style="display: none; margin-bottom: 0.75rem;">
+            <div class="audio-player-card">
+              <div class="audio-player-header">
+                <span>🎵 Audio Playback (Click any timestamp to seek)</span>
+                <div class="audio-player-controls">
+                  <button type="button" onclick="skipAudioPlayer('transcribe-audio', -5)">-5s</button>
+                  <button type="button" onclick="skipAudioPlayer('transcribe-audio', 5)">+5s</button>
+                </div>
+              </div>
+              <audio id="transcribe-audio" controls preload="metadata"></audio>
             </div>
           </div>
 
@@ -893,7 +1154,18 @@
           <form id="form-clip">
             <div class="form-group">
               <label for="clip-source">Source File or URL</label>
-              <input type="text" id="clip-source" required placeholder="D:\Output\Videos\sample.mp4">
+              <div class="input-with-upload">
+                <input type="text" id="clip-source" required placeholder="D:\Output\Videos\sample.mp4">
+                <div class="upload-btn-target" id="clip-upload-btn" title="Click to choose file, or drag & drop directly over this button">
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                  <span class="upload-btn-text">Upload</span>
+                  <input type="file" id="clip-file-input" class="hidden-file-input" accept="audio/*,video/*">
+                </div>
+              </div>
+              <div class="upload-progress-container" id="clip-upload-progress" style="display: none;">
+                <div class="upload-progress-fill" id="clip-upload-progress-fill"></div>
+                <span class="upload-progress-text" id="clip-upload-progress-text">Uploading...</span>
+              </div>
             </div>
 
             <div class="form-row">
@@ -1180,6 +1452,232 @@
       state.activePollers[jobId] = poller;
     }
 
+    // Audio and Timestamp Sync Helpers
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    }
+
+    function skipAudioPlayer(playerId, delta) {
+      const player = document.getElementById(playerId);
+      if (player) {
+        player.currentTime = Math.max(0, player.currentTime + delta);
+        player.play();
+      }
+    }
+
+    function renderInteractiveSegments(containerEl, audioEl, segments) {
+      containerEl.innerHTML = "";
+      if (!segments || segments.length === 0) {
+        containerEl.innerHTML = '<div style="color: var(--text-dim); padding: 0.5rem;">No timestamped segments available.</div>';
+        return;
+      }
+
+      segments.forEach((seg, idx) => {
+        const row = document.createElement("div");
+        row.className = "segment-row";
+        row.id = `seg-${audioEl.id}-${idx}`;
+
+        const pill = document.createElement("button");
+        pill.type = "button";
+        pill.className = "ts-pill";
+        pill.textContent = formatTime(seg.start || 0);
+        pill.title = `Seek audio to ${formatTime(seg.start || 0)}`;
+        pill.onclick = (e) => {
+          e.stopPropagation();
+          audioEl.currentTime = seg.start || 0;
+          audioEl.play();
+        };
+
+        const text = document.createElement("div");
+        text.className = "segment-text";
+        text.textContent = seg.text || "";
+
+        row.appendChild(pill);
+        row.appendChild(text);
+        containerEl.appendChild(row);
+      });
+
+      // Synchronize playback with transcript row highlighting
+      audioEl.ontimeupdate = () => {
+        const cur = audioEl.currentTime;
+        segments.forEach((seg, idx) => {
+          const row = document.getElementById(`seg-${audioEl.id}-${idx}`);
+          if (row) {
+            const sStart = seg.start || 0;
+            const sEnd = seg.end || (sStart + 2.5);
+            if (cur >= sStart && cur <= sEnd) {
+              if (!row.classList.contains("active-playing")) {
+                row.classList.add("active-playing");
+                row.scrollIntoView({ behavior: "smooth", block: "nearest" });
+              }
+            } else {
+              row.classList.remove("active-playing");
+            }
+          }
+        });
+      };
+    }
+
+    // Targeted Drag & Drop and Upload Helper (Strictly button-scoped)
+    function setupUploadTarget(btnId, fileInputId, textInputId, progContainerId, progFillId, progTextId) {
+      const btn = document.getElementById(btnId);
+      const fileInput = document.getElementById(fileInputId);
+      const textInput = document.getElementById(textInputId);
+      const progContainer = document.getElementById(progContainerId);
+      const progFill = document.getElementById(progFillId);
+      const progText = document.getElementById(progTextId);
+
+      if (!btn || !fileInput || !textInput) return;
+
+      // Click button triggers file picker
+      btn.addEventListener("click", (e) => {
+        if (e.target !== fileInput) fileInput.click();
+      });
+
+      // Drag & drop listeners strictly on the button target
+      btn.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        btn.classList.add("drag-over");
+        const lbl = btn.querySelector(".upload-btn-text");
+        if (lbl) lbl.textContent = "Drop to Upload";
+      });
+
+      btn.addEventListener("dragleave", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        btn.classList.remove("drag-over");
+        const lbl = btn.querySelector(".upload-btn-text");
+        if (lbl) lbl.textContent = "Upload";
+      });
+
+      btn.addEventListener("drop", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        btn.classList.remove("drag-over");
+        const lbl = btn.querySelector(".upload-btn-text");
+        if (lbl) lbl.textContent = "Upload";
+        if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+          uploadFile(e.dataTransfer.files[0], textInput, progContainer, progFill, progText);
+        }
+      });
+
+      fileInput.addEventListener("change", () => {
+        if (fileInput.files && fileInput.files.length > 0) {
+          uploadFile(fileInput.files[0], textInput, progContainer, progFill, progText);
+        }
+      });
+    }
+
+    function uploadFile(file, textInputEl, progContainer, progFill, progText) {
+      progContainer.style.display = "flex";
+      progFill.style.width = "0%";
+      progText.textContent = `Uploading ${file.name}... (0%)`;
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/v1/upload", true);
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          progFill.style.width = pct + "%";
+          progText.textContent = `Uploading ${file.name}... (${pct}%)`;
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status === 200) {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            progFill.style.width = "100%";
+            progText.textContent = `Uploaded ${data.filename}!`;
+            textInputEl.value = data.windows_path || data.file_path;
+            textInputEl.style.borderColor = "var(--accent)";
+            showToast(`Uploaded: ${data.filename}`);
+            setTimeout(() => {
+              progContainer.style.display = "none";
+              textInputEl.style.borderColor = "";
+            }, 3000);
+          } catch (err) {
+            progText.textContent = "Upload parse error";
+            showToast("Upload error: " + err.message);
+          }
+        } else {
+          progText.textContent = `Upload failed (${xhr.status})`;
+          showToast(`Upload failed (${xhr.status})`);
+        }
+      };
+
+      xhr.onerror = () => {
+        progText.textContent = "Upload network error";
+        showToast("Upload network error");
+      };
+
+      xhr.send(formData);
+    }
+
+    // Vault Note Preview & Obsidian Helper
+    async function loadNoteDetails(vaultNotePath) {
+      try {
+        const res = await fetch(`/api/v1/vault/note?path=${encodeURIComponent(vaultNotePath)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const openBtn = document.getElementById("ingest-open-obsidian");
+        if (openBtn && data.obsidian_uri) {
+          openBtn.href = data.obsidian_uri;
+        }
+
+        const previewContent = document.getElementById("ingest-preview-content");
+        if (previewContent && data.content) {
+          previewContent.textContent = data.content;
+        }
+
+        const previewTitle = document.getElementById("ingest-preview-title");
+        if (previewTitle && data.filename) {
+          previewTitle.textContent = `Markdown Note: ${data.filename}`;
+        }
+
+        const copyNoteBtn = document.getElementById("btn-copy-note-markdown");
+        if (copyNoteBtn) {
+          copyNoteBtn.onclick = () => {
+            navigator.clipboard.writeText(data.content || "");
+            showToast("Copied Markdown Note!");
+          };
+        }
+
+        const togglePreviewBtn = document.getElementById("btn-toggle-note-preview");
+        if (togglePreviewBtn) {
+          togglePreviewBtn.onclick = () => {
+            const drawer = document.getElementById("ingest-note-preview-drawer");
+            drawer.style.display = drawer.style.display === "none" ? "flex" : "none";
+          };
+        }
+
+        const closePreviewBtn = document.getElementById("btn-close-note-preview");
+        if (closePreviewBtn) {
+          closePreviewBtn.onclick = () => {
+            document.getElementById("ingest-note-preview-drawer").style.display = "none";
+          };
+        }
+
+        const summaryTextEl = document.getElementById("ingest-summary-text");
+        if (summaryTextEl && data.content) {
+          const match = data.content.match(/> \[!abstract\] \*\*Executive AI Summary\*\*([\s\S]*?)(?:---|## 📋 Metadata|$)/);
+          if (match) {
+            summaryTextEl.textContent = match[1].replace(/^> ?/gm, "").trim();
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load vault note details", err);
+      }
+    }
+
     // FORM 1: Ingest
     document.getElementById("form-ingest").addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -1239,7 +1737,7 @@
             percentText.textContent = `${Math.round(job.progress_percent)}%`;
             progressBar.style.width = `${job.progress_percent}%`;
           },
-          (job) => {
+          async (job) => {
             btn.disabled = false;
             stageBadge.className = "pill completed";
             stageBadge.textContent = "Completed";
@@ -1255,10 +1753,39 @@
                 showToast("Copied " + job.obsidian_link);
               };
             }
-            if (job.output_files && job.output_files.vault_note) {
-              summaryContainer.style.display = "block";
-              summaryText.textContent = `Note written to: ${job.output_files.vault_note}`;
+
+            if (job.obsidian_uri) {
+              const openBtn = document.getElementById("ingest-open-obsidian");
+              openBtn.href = job.obsidian_uri;
             }
+
+            if (job.output_files && job.output_files.vault_note) {
+              loadNoteDetails(job.output_files.vault_note);
+            }
+
+            // Audio Player & Timestamp sync
+            if (job.output_files && job.output_files.audio) {
+              const audioCont = document.getElementById("ingest-audio-container");
+              const audioEl = document.getElementById("ingest-audio");
+              audioCont.style.display = "block";
+              audioEl.src = `/api/v1/media/stream?path=${encodeURIComponent(job.output_files.audio)}`;
+
+              if (job.output_files.transcript_json) {
+                try {
+                  const trRes = await fetch(`/api/v1/media/stream?path=${encodeURIComponent(job.output_files.transcript_json)}`);
+                  if (trRes.ok) {
+                    const trData = await trRes.json();
+                    const segContainer = document.getElementById("ingest-segments-container");
+                    const segList = document.getElementById("ingest-segments-list");
+                    segContainer.style.display = "block";
+                    renderInteractiveSegments(segList, audioEl, trData.segments || []);
+                  }
+                } catch (e) {
+                  console.warn("Failed to load transcript JSON", e);
+                }
+              }
+            }
+
             showToast("Vault Note Generated!");
           },
           (job) => {
@@ -1334,17 +1861,44 @@
             segmentsList.style.display = "flex";
             copyBtn.style.display = "inline-flex";
 
-            if (job.output_files) {
-              const info = document.createElement("div");
-              info.style.fontSize = "0.8rem";
-              info.style.color = "var(--accent)";
-              info.innerHTML = `Completed! Output text: <code>${job.output_files.text || ''}</code>`;
-              segmentsList.appendChild(info);
+            if (job.output_files && job.output_files.audio) {
+              const audioCont = document.getElementById("transcribe-audio-container");
+              const audioEl = document.getElementById("transcribe-audio");
+              audioCont.style.display = "block";
+              audioEl.src = `/api/v1/media/stream?path=${encodeURIComponent(job.output_files.audio)}`;
+            }
 
-              copyBtn.onclick = () => {
-                navigator.clipboard.writeText(job.output_files.text || "");
-                showToast("Copied transcript path");
-              };
+            if (job.output_files && job.output_files.transcript_json) {
+              try {
+                const trRes = await fetch(`/api/v1/media/stream?path=${encodeURIComponent(job.output_files.transcript_json)}`);
+                if (trRes.ok) {
+                  const trData = await trRes.json();
+                  const audioEl = document.getElementById("transcribe-audio");
+                  renderInteractiveSegments(segmentsList, audioEl, trData.segments || []);
+                  copyBtn.onclick = () => {
+                    navigator.clipboard.writeText(trData.full_text || "");
+                    showToast("Copied transcript text!");
+                  };
+                  return;
+                }
+              } catch (e) {
+                console.warn("Failed to load transcript JSON", e);
+              }
+            }
+
+            // Fallback to plain text
+            if (job.output_files && job.output_files.text) {
+              try {
+                const txtRes = await fetch(`/api/v1/media/stream?path=${encodeURIComponent(job.output_files.text)}`);
+                const fullTxt = txtRes.ok ? await txtRes.text() : "";
+                segmentsList.innerHTML = `<div style="padding: 0.75rem; font-size: 0.85rem; line-height: 1.6; white-space: pre-wrap;">${fullTxt}</div>`;
+                copyBtn.onclick = () => {
+                  navigator.clipboard.writeText(fullTxt);
+                  showToast("Copied transcript text!");
+                };
+              } catch (e) {
+                segmentsList.innerHTML = `<div>Output text: <code>${job.output_files.text}</code></div>`;
+              }
             }
           },
           (job) => {
@@ -1524,6 +2078,10 @@
     });
 
     // Initialize
+    setupUploadTarget("ingest-upload-btn", "ingest-file-input", "ingest-source", "ingest-upload-progress", "ingest-upload-progress-fill", "ingest-upload-progress-text");
+    setupUploadTarget("transcribe-upload-btn", "transcribe-file-input", "transcribe-source", "transcribe-upload-progress", "transcribe-upload-progress-fill", "transcribe-upload-progress-text");
+    setupUploadTarget("clip-upload-btn", "clip-file-input", "clip-source", "clip-upload-progress", "clip-upload-progress-fill", "clip-upload-progress-text");
+
     fetchHealth();
     fetchModels();
     fetchJobs();

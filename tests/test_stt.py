@@ -108,3 +108,41 @@ def test_run_transcribe_task_generates_transcript_json(tmp_path):
     assert txt_file.exists()
     assert txt_file.read_text(encoding="utf-8") == "Hello world"
 
+
+def test_run_ingest_pipeline_generates_sidecar_and_obsidian_uri(tmp_path):
+    import json
+    from pathlib import Path
+    from app.routers.ingest import run_ingest_pipeline
+    from app.models.schemas import IngestRequest
+    from app.queue.manager import job_manager
+
+    fake_audio = tmp_path / "meeting_sample.wav"
+    fake_audio.write_bytes(b"RIFFdummywavdata")
+
+    fake_res = {
+        "engine": "parakeet",
+        "model": "parakeet-tdt-0.6b-v3-q8_0",
+        "language": "en",
+        "duration": 5.2,
+        "segments": [{"id": 0, "start": 0.0, "end": 2.0, "text": "Meeting discussion"}],
+        "full_text": "Meeting discussion",
+    }
+
+    job_id = job_manager.create_job("ingest", str(fake_audio))
+    req = IngestRequest(source=str(fake_audio), engine="parakeet", summarize=False)
+
+    fake_note = tmp_path / "2026-09-17_meeting_sample.md"
+    fake_note.write_text("# Meeting note", encoding="utf-8")
+
+    with mock.patch("app.routers.ingest.stt_service.transcribe", return_value=fake_res), \
+         mock.patch("app.routers.ingest.ObsidianService.create_transcript_note", return_value=fake_note), \
+         mock.patch("subprocess.Popen"):
+        run_ingest_pipeline(job_id, req)
+
+    job = job_manager.get_job(job_id)
+    assert job.status == "completed"
+    assert "transcript_json" in job.output_files
+    assert job.obsidian_uri is not None
+    assert "obsidian://open?vault=Vault" in job.obsidian_uri
+
+

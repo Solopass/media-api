@@ -62,6 +62,7 @@ class JobDetail(BaseModel):
     eta: Optional[str] = None
     output_files: Dict[str, str] = {}
     obsidian_link: Optional[str] = None
+    obsidian_uri: Optional[str] = None
     error: Optional[str] = None
     created_at: str
     updated_at: str

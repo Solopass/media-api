@@ -1,0 +1,138 @@
+import mimetypes
+import os
+import re
+import urllib.parse
+from datetime import datetime
+from pathlib import Path
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse
+
+from app.config import settings, normalize_path, to_windows_path
+
+router = APIRouter(prefix="/api/v1", tags=["Media Upload & Streaming"])
+
+ALLOWED_MEDIA_ROOTS = [
+    Path("/mnt/d/Output"),
+    Path("/mnt/d/AI/Cache"),
+    Path("/mnt/d/AI/Vault")
+]
+
+ALLOWED_NOTE_ROOTS = [
+    Path("/mnt/d/AI/Vault"),
+    Path("/mnt/d/Output/Transcripts")
+]
+
+ALLOWED_EXTENSIONS = {
+    ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg",
+    ".mp4", ".webm", ".mkv", ".mov", ".avi",
+    ".json", ".txt", ".md"
+}
+
+def _sanitize_filename(name: str) -> str:
+    base = os.path.basename(name)
+    clean = re.sub(r"[^\w\s\.-]", "_", base).strip()
+    return clean or "uploaded_media"
+
+def _is_path_allowed(target: Path, roots: list[Path]) -> bool:
+    try:
+        resolved_target = target.resolve()
+        for root in roots:
+            resolved_root = root.resolve()
+            if resolved_target == resolved_root or resolved_target.is_relative_to(resolved_root):
+                return True
+    except Exception:
+        return False
+    return False
+
+@router.post("/upload")
+async def upload_media_file(file: UploadFile = File(...)):
+    """Accept an uploaded media file and stream it directly to D:\\AI\\Cache\\uploads\\."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Filename missing")
+
+    clean_name = _sanitize_filename(file.filename)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    dest_filename = f"{timestamp}_{clean_name}"
+    dest_path = settings.uploads_dir / dest_filename
+
+    total_bytes = 0
+    buffer_size = 1024 * 1024  # 1 MB chunk
+
+    try:
+        with open(dest_path, "wb") as f:
+            while chunk := await file.read(buffer_size):
+                f.write(chunk)
+                total_bytes += len(chunk)
+    except Exception as e:
+        if dest_path.exists():
+            dest_path.unlink()
+        raise HTTPException(status_code=500, detail=f"Failed to write file: {e}")
+
+    return {
+        "status": "ok",
+        "filename": clean_name,
+        "dest_filename": dest_filename,
+        "file_path": str(dest_path),
+        "windows_path": to_windows_path(dest_path),
+        "size_bytes": total_bytes
+    }
+
+@router.get("/media/stream")
+def stream_media(path: str = Query(..., description="File path to stream")):
+    """Stream audio/video file with HTTP Range support for HTML5 players."""
+    target_path = normalize_path(path)
+
+    if not _is_path_allowed(target_path, ALLOWED_MEDIA_ROOTS):
+        raise HTTPException(status_code=403, detail="Access denied: path outside permitted media directories")
+
+    if not target_path.exists() or not target_path.is_file():
+        raise HTTPException(status_code=404, detail="Media file not found")
+
+    if target_path.suffix.lower() not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Unsupported file extension: {target_path.suffix}")
+
+    media_type, _ = mimetypes.guess_type(str(target_path))
+    if not media_type:
+        if target_path.suffix.lower() in [".mp3", ".m4a", ".aac", ".wav", ".ogg", ".flac"]:
+            media_type = f"audio/{target_path.suffix.lstrip('.')}"
+        else:
+            media_type = "application/octet-stream"
+
+    return FileResponse(
+        path=str(target_path),
+        media_type=media_type,
+        filename=target_path.name
+    )
+
+@router.get("/vault/note")
+def get_vault_note(path: str = Query(..., description="Path to markdown note in vault")):
+    """Retrieve Obsidian markdown note content and deep-link details."""
+    target_path = normalize_path(path)
+
+    if not _is_path_allowed(target_path, ALLOWED_NOTE_ROOTS):
+        raise HTTPException(status_code=403, detail="Access denied: path outside Obsidian vault")
+
+    if not target_path.exists() or not target_path.is_file():
+        raise HTTPException(status_code=404, detail="Vault note not found")
+
+    if target_path.suffix.lower() != ".md":
+        raise HTTPException(status_code=400, detail="Requested file is not a Markdown note")
+
+    try:
+        content = target_path.read_text(encoding="utf-8")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read note: {e}")
+
+    encoded_file = urllib.parse.quote(f"Transcripts/{target_path.name}")
+    obsidian_uri = f"obsidian://open?vault=Vault&file={encoded_file}"
+    obsidian_link = f"[[Transcripts/{target_path.stem}]]"
+
+    return {
+        "filename": target_path.name,
+        "stem": target_path.stem,
+        "file_path": str(target_path),
+        "windows_path": to_windows_path(target_path),
+        "obsidian_uri": obsidian_uri,
+        "obsidian_link": obsidian_link,
+        "content": content
+    }

@@ -76,4 +76,57 @@ def test_ui_endpoint():
     assert response.status_code == 200
     assert "SOL Media Studio" in response.text
 
+def test_upload_endpoint():
+    from pathlib import Path
+    file_bytes = b"fake-audio-content-for-testing"
+    files = {"file": ("test_upload_audio.mp3", file_bytes, "audio/mpeg")}
+    response = client.post("/api/v1/upload", files=files)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "ok"
+    assert "test_upload_audio.mp3" in data["filename"]
+    assert "file_path" in data
+    assert "windows_path" in data
+    assert data["windows_path"].startswith("D:\\AI\\Cache\\uploads\\")
+    uploaded_path = Path(data["file_path"])
+    assert uploaded_path.exists()
+    assert uploaded_path.read_bytes() == file_bytes
+    # Clean up test upload
+    uploaded_path.unlink()
+
+def test_media_stream_security_and_streaming():
+    # Attempting to stream unauthorized system file must return 403
+    response = client.get("/api/v1/media/stream?path=/etc/passwd")
+    assert response.status_code == 403
+
+    # Attempting to stream non-existent file in allowed directory returns 404
+    response = client.get("/api/v1/media/stream?path=/mnt/d/Output/Videos/non_existent.mp4")
+    assert response.status_code == 404
+
+    # Streaming existing test media returns 200
+    test_wav = "/mnt/d/AI/Cache/stt-test/meeting.wav"
+    response = client.get(f"/api/v1/media/stream?path={test_wav}")
+    assert response.status_code == 200
+    assert "audio" in response.headers.get("content-type", "")
+
+def test_vault_note_endpoint():
+    # Attempting path outside vault returns 403
+    response = client.get("/api/v1/vault/note?path=/mnt/d/Output/Videos/test.mp4")
+    assert response.status_code == 403
+
+    # Attempting non-markdown file inside vault (if any) or non-existent note returns 404
+    response = client.get("/api/v1/vault/note?path=/mnt/d/AI/Vault/Transcripts/non_existent_note.md")
+    assert response.status_code == 404
+
+    # Reading existing sample note
+    sample_note = "/mnt/d/AI/Vault/Transcripts/sample_transcription_format.md"
+    response = client.get(f"/api/v1/vault/note?path={sample_note}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["filename"] == "sample_transcription_format.md"
+    assert "obsidian_uri" in data
+    assert "obsidian://open?vault=Vault" in data["obsidian_uri"]
+    assert "content" in data
+    assert len(data["content"]) > 0
+
 

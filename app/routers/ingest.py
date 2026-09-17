@@ -1,4 +1,6 @@
+import json
 import os
+import urllib.parse
 from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from datetime import datetime
@@ -54,6 +56,14 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
         job_manager.update_job(job_id, progress_percent=70.0, speed=f"Transcribing with {engine}...")
         trans_res = stt_service.transcribe(audio_path, engine=engine, model_size=req.model_size)
 
+        # Full result sidecar for GUI audio player timestamp seeking and sync
+        out_json = audio_path.with_suffix(".transcript.json")
+        try:
+            with open(out_json, "w", encoding="utf-8") as f:
+                json.dump({**trans_res, "media": media_info, "source": req.source, "audio": str(audio_path)}, f, ensure_ascii=False, indent=1)
+        except Exception:
+            out_json = None
+
         # Step 4: Executive AI Summary via Ollama
         summary = "*(Summary disabled)*"
         if req.summarize:
@@ -75,16 +85,22 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
         except Exception:
             pass
 
+        encoded_note = urllib.parse.quote(f"Transcripts/{vault_note.name}")
+        out_files = {
+            "media": str(current_media),
+            "audio": str(audio_path),
+            "vault_note": str(vault_note)
+        }
+        if out_json and Path(out_json).exists():
+            out_files["transcript_json"] = str(out_json)
+
         job_manager.update_job(
             job_id,
             status=JobStatus.COMPLETED,
             progress_percent=100.0,
             obsidian_link=f"[[Transcripts/{vault_note.stem}]]",
-            output_files={
-                "media": str(current_media),
-                "audio": str(audio_path),
-                "vault_note": str(vault_note)
-            }
+            obsidian_uri=f"obsidian://open?vault=Vault&file={encoded_note}",
+            output_files=out_files
         )
     except Exception as e:
         job_manager.update_job(job_id, status=JobStatus.FAILED, error=str(e))

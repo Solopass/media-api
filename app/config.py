@@ -23,6 +23,7 @@ class Settings(BaseModel):
     
     # AI & Model Caches (Strict 0-leak)
     cache_dir: Path = Path("/mnt/d/AI/Cache")
+    uploads_dir: Path = Path("/mnt/d/AI/Cache/uploads")
     hf_cache: Path = Path("/mnt/d/AI/Cache/huggingface")
     whisper_models_dir: Path = Path("/mnt/d/AI/Models/Whisper")
     
@@ -49,6 +50,7 @@ class Settings(BaseModel):
             self.output_audio,
             self.output_transcripts,
             self.vault_transcripts,
+            self.uploads_dir,
             self.hf_cache,
             self.whisper_models_dir
         ]:
@@ -65,5 +67,15 @@ def normalize_path(path_input: str | Path) -> Path:
         return Path(f"/mnt/{drive}/{rest}")
     return Path(s)
 
+def to_windows_path(path_input: str | Path) -> str:
+    r"""Convert WSL (/mnt/d/...) path to Windows (D:\...) path."""
+    s = str(path_input).strip().strip('"').strip("'")
+    if s.startswith("/mnt/") and len(s) > 6 and s[6] == "/":
+        drive = s[5].upper()
+        rest = s[7:].replace("/", "\\")
+        return f"{drive}:\\{rest}"
+    return s
+
 settings = Settings()
 settings.setup_directories()
+

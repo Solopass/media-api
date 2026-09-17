@@ -17,7 +17,7 @@ from starlette.staticfiles import StaticFiles
 from app.config import settings
 from app.queue.manager import job_manager
 from app.models.schemas import ShutdownRequest, ShutdownResponse
-from app.routers import media, transcribe, ingest, jobs
+from app.routers import media, transcribe, ingest, jobs, upload
 
 logger = logging.getLogger("media_api")
 
@@ -87,6 +87,7 @@ app.include_router(media.router)
 app.include_router(transcribe.router)
 app.include_router(ingest.router)
 app.include_router(jobs.router)
+app.include_router(upload.router)
 
 static_dir = settings.workspace_dir / "app" / "static"
 static_dir.mkdir(parents=True, exist_ok=True)
