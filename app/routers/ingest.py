@@ -141,7 +141,8 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
             output_files=out_files
         )
     except Exception as e:
-        job_manager.update_job(job_id, status=JobStatus.FAILED, error=str(e))
+        if not job_manager.is_cancelled(job_id):
+            job_manager.update_job(job_id, status=JobStatus.FAILED, error=str(e))
 
 @router.post("/ingest", response_model=JobResponse)
 def ingest_media(req: IngestRequest, background_tasks: BackgroundTasks):

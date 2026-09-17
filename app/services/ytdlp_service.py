@@ -39,12 +39,19 @@ class YtDlpService:
             mins = int(duration // 60)
             secs = int(duration % 60)
             duration_formatted = f"{mins:02d}:{secs:02d}"
+            thumb = info.get("thumbnail")
+            if not thumb and info.get("thumbnails") and isinstance(info["thumbnails"], list):
+                try:
+                    thumb = info["thumbnails"][-1].get("url")
+                except Exception:
+                    thumb = None
+
             return {
                 "title": info.get("title") or "Unknown Title",
                 "uploader": info.get("uploader") or info.get("channel") or info.get("extractor_key") or "Unknown",
                 "duration": duration,
                 "duration_formatted": duration_formatted,
-                "thumbnail": info.get("thumbnail"),
+                "thumbnail": thumb,
                 "description": (info.get("description") or "")[:250] if info.get("description") else None,
             }
 

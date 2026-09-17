@@ -187,7 +187,7 @@ def get_recent_vault_notes(limit: int = Query(15, ge=1, le=100, description="Max
             stat = p.stat()
             header_chunk = ""
             with open(p, "r", encoding="utf-8", errors="ignore") as f:
-                header_chunk = f.read(2048)
+                header_chunk = f.read(4096)
             fm = _extract_frontmatter(header_chunk)
             title = fm.get("title") or p.stem
             date_val = str(fm.get("date") or datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"))

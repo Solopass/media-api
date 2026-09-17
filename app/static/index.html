@@ -1889,6 +1889,12 @@
           if (matchingOpt) selectIdle.value = matchingOpt.value;
           else if (!data.auto_close || data.idle_timeout_seconds <= 0) selectIdle.value = "0";
         }
+
+        // Auto-refresh jobs table if currently on jobs tab
+        const tabJobs = document.getElementById("tab-jobs");
+        if (tabJobs && tabJobs.classList.contains("active")) {
+          fetchJobs();
+        }
       } catch (err) {
         statusDot.classList.add("offline");
         txtStatus.textContent = "Offline / Idle";
@@ -2908,10 +2914,11 @@
           },
           (job) => {
             btn.disabled = false;
-            stageBadge.className = "pill failed";
-            stageBadge.textContent = "Failed";
-            stageText.textContent = job.error || "Job failed";
-            showToast("Pipeline failed: " + (job.error || "unknown error"));
+            const isCancelled = job.status === "cancelled";
+            stageBadge.className = `pill ${isCancelled ? "cancelled" : "failed"}`;
+            stageBadge.textContent = isCancelled ? "Cancelled" : "Failed";
+            stageText.textContent = job.error || (isCancelled ? "Job cancelled by user" : "Job failed");
+            showToast(isCancelled ? "Ingestion cancelled" : ("Pipeline failed: " + (job.error || "unknown error")));
           }
         );
       } catch (err) {
@@ -3055,8 +3062,9 @@
           },
           (job) => {
             btn.disabled = false;
-            stageText.textContent = "Failed: " + (job.error || "Unknown");
-            showToast("Transcription failed");
+            const isCancelled = job.status === "cancelled";
+            stageText.textContent = isCancelled ? "Cancelled by user" : ("Failed: " + (job.error || "Unknown"));
+            showToast(isCancelled ? "Transcription cancelled" : "Transcription failed");
           }
         );
       } catch (err) {
@@ -3122,8 +3130,9 @@
           },
           (job) => {
             btn.disabled = false;
-            speedText.textContent = "Download failed: " + (job.error || "");
-            showToast("Download failed");
+            const isCancelled = job.status === "cancelled";
+            speedText.textContent = isCancelled ? "Download cancelled by user" : ("Download failed: " + (job.error || ""));
+            showToast(isCancelled ? "Download cancelled" : "Download failed");
           }
         );
       } catch (err) {
@@ -3193,8 +3202,9 @@
           },
           (job) => {
             btn.disabled = false;
-            stageText.textContent = "Failed: " + (job.error || "");
-            showToast("Clip failed");
+            const isCancelled = job.status === "cancelled";
+            stageText.textContent = isCancelled ? "Clip cancelled by user" : ("Failed: " + (job.error || ""));
+            showToast(isCancelled ? "Clip cancelled" : "Clip failed");
           }
         );
       } catch (err) {
@@ -3319,7 +3329,7 @@
               <td style="white-space: nowrap;">
                 <div style="display: flex; gap: 0.35rem; align-items: center;">
                   <a class="btn-obsidian" href="${n.obsidian_uri}" target="_blank" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;" title="Open in Obsidian Desktop">Open</a>
-                  <button type="button" class="btn-sm" onclick="previewVaultNote('${encodeURIComponent(n.file_path)}', '${titleEsc.replace(/'/g, "\\'")}', '${n.obsidian_uri}')" title="Preview markdown note">Preview</button>
+                  <button type="button" class="btn-sm" onclick="previewVaultNote('${encodeURIComponent(n.file_path)}')" title="Preview markdown note">Preview</button>
                 </div>
               </td>
             </tr>
@@ -3330,7 +3340,7 @@
       }
     }
 
-    async function previewVaultNote(encodedPath, title, obsidianUri) {
+    async function previewVaultNote(encodedPath) {
       try {
         const res = await fetch(`/api/v1/vault/note?path=${encodedPath}`);
         if (!res.ok) return;
@@ -3342,9 +3352,9 @@
         const copyBtn = document.getElementById("btn-vault-copy-note");
         const closeBtn = document.getElementById("btn-vault-close-preview");
 
-        if (titleEl) titleEl.textContent = `Note: ${data.filename || title}`;
+        if (titleEl) titleEl.textContent = `Note: ${data.filename || 'Transcript Note'}`;
         if (contentEl) contentEl.textContent = data.content || "";
-        if (openEl) openEl.href = obsidianUri || data.obsidian_uri;
+        if (openEl) openEl.href = data.obsidian_uri || "#";
         if (copyBtn) {
           copyBtn.onclick = () => {
             navigator.clipboard.writeText(data.content || "");

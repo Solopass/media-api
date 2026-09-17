@@ -38,9 +38,10 @@ def run_transcribe_task(job_id: str, req: TranscribeRequest):
         if job_manager.is_cancelled(job_id):
             return
 
-        # Extract audio if it is a video container
+        # Extract audio if it is a video container or non-native audio format
         video_exts = {".mp4", ".mkv", ".webm", ".mov", ".avi", ".flv", ".ts", ".wmv"}
-        if source_path.suffix.lower() in video_exts:
+        non_native_audio = {".opus", ".wma"}
+        if source_path.suffix.lower() in video_exts or source_path.suffix.lower() in non_native_audio:
             job_manager.update_job(job_id, progress_percent=30.0, speed="Extracting Audio...")
             audio_path = FFmpegService.extract_audio(source_path)
         else:
@@ -81,7 +82,8 @@ def run_transcribe_task(job_id: str, req: TranscribeRequest):
             }
         )
     except Exception as e:
-        job_manager.update_job(job_id, status=JobStatus.FAILED, error=str(e))
+        if not job_manager.is_cancelled(job_id):
+            job_manager.update_job(job_id, status=JobStatus.FAILED, error=str(e))
 
 @router.post("/transcribe", response_model=JobResponse)
 def transcribe_media(req: TranscribeRequest, background_tasks: BackgroundTasks):
