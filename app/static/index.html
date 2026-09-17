@@ -1,0 +1,1533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SOL Media Studio</title>
+  <style>
+    :root {
+      --bg-base: #0a0d14;
+      --bg-surface: #111827;
+      --bg-surface-elevated: #1a2234;
+      --bg-surface-hover: #222d42;
+      --border-subtle: #1f293d;
+      --border-focus: #06b6d4;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+      --primary: #06b6d4;
+      --primary-hover: #0891b2;
+      --primary-glow: rgba(6, 182, 212, 0.25);
+      --accent: #10b981;
+      --accent-glow: rgba(16, 185, 129, 0.25);
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+      --shadow-md: 0 4px 12px 0 rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 10px 25px -3px rgba(0, 0, 0, 0.5);
+      --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      line-height: 1.5;
+    }
+
+    /* Top Telemetry Header */
+    header {
+      background: rgba(17, 24, 39, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-subtle);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      padding: 0.75rem 1.5rem;
+    }
+    .header-inner {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .brand-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--primary), #3b82f6);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 12px var(--primary-glow);
+    }
+    .brand-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .badge-sol {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      background: rgba(6, 182, 212, 0.15);
+      color: var(--primary);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    .telemetry-strip {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .stat-chip {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      padding: 0.35rem 0.75rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .stat-chip strong { color: var(--text-main); font-weight: 600; }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+    }
+    .status-dot.offline {
+      background-color: var(--danger);
+      box-shadow: 0 0 8px var(--danger);
+    }
+
+    .btn-header-action {
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      padding: 0.35rem 0.65rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      transition: var(--transition);
+    }
+    .btn-header-action:hover {
+      background: var(--bg-surface-hover);
+      color: var(--text-main);
+      border-color: var(--text-dim);
+    }
+    .btn-shutdown:hover {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--danger);
+      border-color: var(--danger);
+    }
+
+    /* Main Container & Tabs */
+    main {
+      flex: 1;
+      max-width: 1280px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .nav-tabs {
+      display: flex;
+      gap: 0.5rem;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 0.5rem;
+      overflow-x: auto;
+      scrollbar-width: thin;
+    }
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 0.6rem 1rem;
+      border-radius: var(--radius-md);
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: var(--transition);
+      white-space: nowrap;
+    }
+    .tab-btn:hover {
+      color: var(--text-main);
+      background: var(--bg-surface);
+    }
+    .tab-btn.active {
+      color: var(--primary);
+      background: rgba(6, 182, 212, 0.1);
+      border: 1px solid rgba(6, 182, 212, 0.25);
+    }
+    .tab-badge {
+      background: var(--bg-surface-hover);
+      color: var(--text-muted);
+      padding: 0.1rem 0.4rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+    }
+
+    /* Tab Content Panels */
+    .tab-panel {
+      display: none;
+      animation: fadeIn 0.25s ease-out;
+    }
+    .tab-panel.active {
+      display: grid;
+      gap: 1.5rem;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Layout Grids */
+    .grid-2col {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 1.5rem;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .grid-2col { grid-template-columns: 1fr; }
+    }
+
+    /* Cards */
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      box-shadow: var(--shadow-md);
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.25rem;
+    }
+    .card-title {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .card-desc {
+      font-size: 0.825rem;
+      color: var(--text-muted);
+      margin-top: 0.2rem;
+    }
+
+    /* Forms */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      margin-bottom: 1.1rem;
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+    }
+    label {
+      font-size: 0.825rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .hint {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      font-weight: normal;
+    }
+    input[type="text"],
+    input[type="url"],
+    input[type="number"],
+    select,
+    textarea {
+      width: 100%;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 0.65rem 0.85rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.9rem;
+      transition: var(--transition);
+      font-family: inherit;
+    }
+    input[type="text"]:focus,
+    input[type="url"]:focus,
+    input[type="number"]:focus,
+    select:focus,
+    textarea:focus {
+      outline: none;
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px var(--primary-glow);
+      background: var(--bg-surface);
+    }
+    input::placeholder { color: var(--text-dim); }
+
+    /* Switch toggle */
+    .switch-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      padding: 0.5rem 0.75rem;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      user-select: none;
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 22px;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background-color: var(--border-subtle);
+      transition: var(--transition);
+      border-radius: 34px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: var(--transition);
+      border-radius: 50%;
+    }
+    input:checked + .slider { background-color: var(--primary); }
+    input:checked + .slider:before { transform: translateX(18px); }
+
+    /* Primary Buttons */
+    .btn-submit {
+      background: linear-gradient(135deg, var(--primary), #0284c7);
+      color: #ffffff;
+      border: none;
+      padding: 0.75rem 1.25rem;
+      border-radius: var(--radius-md);
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      width: 100%;
+      box-shadow: 0 4px 14px var(--primary-glow);
+      transition: var(--transition);
+    }
+    .btn-submit:hover {
+      background: linear-gradient(135deg, #0891b2, #0369a1);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px var(--primary-glow);
+    }
+    .btn-submit:active { transform: translateY(0); }
+    .btn-submit:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    /* Live Output & Result Cards */
+    .result-box {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 1rem;
+      margin-top: 1rem;
+      font-size: 0.85rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .progress-track {
+      width: 100%;
+      height: 8px;
+      background: var(--bg-base);
+      border-radius: 9999px;
+      overflow: hidden;
+      margin-top: 0.35rem;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      width: 0%;
+      border-radius: 9999px;
+      transition: width 0.3s ease;
+    }
+    .vault-link-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--accent);
+      padding: 0.4rem 0.75rem;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .vault-link-badge:hover {
+      background: rgba(16, 185, 129, 0.2);
+    }
+
+    /* Segment Table & Text Output */
+    .transcript-viewer {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      max-height: 520px;
+      overflow-y: auto;
+      padding-right: 0.25rem;
+    }
+    .segment-row {
+      display: flex;
+      gap: 0.75rem;
+      padding: 0.5rem;
+      border-radius: var(--radius-sm);
+      background: var(--bg-surface-elevated);
+      font-size: 0.85rem;
+      border-left: 2px solid transparent;
+      transition: var(--transition);
+    }
+    .segment-row:hover {
+      border-left-color: var(--primary);
+      background: var(--bg-surface-hover);
+    }
+    .segment-time {
+      font-family: ui-monospace, Consolas, monospace;
+      color: var(--primary);
+      font-weight: 600;
+      white-space: nowrap;
+      user-select: none;
+    }
+    .segment-text { color: var(--text-main); flex: 1; }
+
+    /* Tables */
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      background: var(--bg-surface);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.85rem;
+    }
+    th {
+      background: var(--bg-surface-elevated);
+      color: var(--text-muted);
+      font-weight: 600;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border-subtle);
+      white-space: nowrap;
+    }
+    td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border-subtle);
+      color: var(--text-main);
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg-surface-hover); }
+
+    /* Status Pills */
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.2rem 0.55rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: capitalize;
+    }
+    .pill.completed { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .pill.running { background: rgba(6, 182, 212, 0.15); color: #38bdf8; border: 1px solid rgba(6, 182, 212, 0.3); }
+    .pill.queued { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .pill.failed { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+
+    /* Toast notification */
+    #toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: var(--bg-surface-elevated);
+      color: var(--text-main);
+      border: 1px solid var(--border-focus);
+      box-shadow: var(--shadow-lg);
+      padding: 0.75rem 1.25rem;
+      border-radius: var(--radius-md);
+      font-size: 0.875rem;
+      display: none;
+      z-index: 100;
+      align-items: center;
+      gap: 0.5rem;
+      animation: slideUp 0.2s ease-out;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(12px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    /* SVG Icon Helpers */
+    .icon {
+      width: 16px;
+      height: 16px;
+      stroke-width: 2;
+      stroke: currentColor;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header & Hardware Telemetry -->
+  <header>
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg class="icon" style="color: #fff; width: 18px; height: 18px;" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+        </div>
+        <div class="brand-title">
+          SOL Media Studio
+          <span class="badge-sol">Workstation</span>
+        </div>
+      </div>
+
+      <div class="telemetry-strip">
+        <div class="stat-chip" id="chip-status">
+          <span class="status-dot" id="status-dot"></span>
+          <span id="txt-status">Checking...</span>
+        </div>
+        <div class="stat-chip">
+          <svg class="icon" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line></svg>
+          E-Cores Pin
+        </div>
+        <div class="stat-chip">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M22 12H2"></path><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path><line x1="6" y1="16" x2="6.01" y2="16"></line><line x1="10" y1="16" x2="10.01" y2="16"></line></svg>
+          D: Drive: <strong id="val-storage">-- GB Free</strong>
+        </div>
+        <div class="stat-chip">
+          <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+          Idle: <strong id="val-idle">--s</strong>
+        </div>
+
+        <button class="btn-header-action" id="btn-refresh" title="Refresh status & telemetry">
+          <svg class="icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+        </button>
+        <button class="btn-header-action btn-shutdown" id="btn-shutdown" title="Release WSL RAM & threads immediately">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>
+          Shutdown
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Navigation Tabs -->
+  <main>
+    <nav class="nav-tabs">
+      <button class="tab-btn active" data-tab="tab-ingest">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+        Ingest & Vault Note
+      </button>
+      <button class="tab-btn" data-tab="tab-transcribe">
+        <svg class="icon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+        Quick Speech-To-Text
+      </button>
+      <button class="tab-btn" data-tab="tab-download">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        Media Downloader
+      </button>
+      <button class="tab-btn" data-tab="tab-clip">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><line x1="20" y1="4" x2="8.12" y2="15.88"></line><line x1="14.47" y1="14.48" x2="20" y2="20"></line><line x1="8.12" y1="8.12" x2="12" y2="12"></line></svg>
+        Media Clipper
+      </button>
+      <button class="tab-btn" data-tab="tab-jobs">
+        <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+        Job Monitor
+        <span class="tab-badge" id="badge-active-jobs">0</span>
+      </button>
+    </nav>
+
+    <!-- TAB 1: INGEST & OBSIDIAN NOTE -->
+    <section id="tab-ingest" class="tab-panel active">
+      <div class="grid-2col">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                One-Shot Media Ingest Pipeline
+              </h2>
+              <p class="card-desc">Download or load media &rarr; Transcribe via Parakeet &rarr; Summarize with sol-fast &rarr; Save note to Obsidian</p>
+            </div>
+          </div>
+
+          <form id="form-ingest">
+            <div class="form-group">
+              <label for="ingest-source">Media Source (Web URL or Local Path)</label>
+              <input type="text" id="ingest-source" required placeholder="https://youtube.com/watch?v=... or D:\rec\meeting.wav">
+              <span class="hint">Supports YouTube, podcasts, Twitch, or local .wav, .mp3, .mp4 on D:\</span>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="ingest-clip-start">Clip Start <span class="hint">(optional)</span></label>
+                <input type="text" id="ingest-clip-start" placeholder="00:00:00">
+              </div>
+              <div class="form-group">
+                <label for="ingest-clip-end">Clip End <span class="hint">(optional)</span></label>
+                <input type="text" id="ingest-clip-end" placeholder="00:05:00">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="ingest-engine">STT Engine</label>
+                <select id="ingest-engine">
+                  <option value="parakeet" selected>Parakeet TDT 0.6B (Fast CPU, 4.8% WER)</option>
+                  <option value="whisper">Faster-Whisper (Multi-lingual CPU)</option>
+                </select>
+              </div>
+              <div class="form-group" id="group-whisper-size" style="display: none;">
+                <label for="ingest-whisper-size">Whisper Model Size</label>
+                <select id="ingest-whisper-size">
+                  <option value="tiny" selected>Tiny (Ultra-fast)</option>
+                  <option value="base">Base</option>
+                  <option value="small">Small</option>
+                  <option value="medium">Medium</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="switch-label">
+                  <span>Executive AI Summary</span>
+                  <label class="switch">
+                    <input type="checkbox" id="ingest-summarize" checked>
+                    <span class="slider"></span>
+                  </label>
+                </label>
+              </div>
+              <div class="form-group" id="group-llm-model">
+                <label for="ingest-llm-model">Ollama Worker Model</label>
+                <select id="ingest-llm-model">
+                  <option value="sol-fast" selected>sol-fast (gpt-oss:20b, 65k ctx, 120 tok/s)</option>
+                  <option value="sol-specialist">sol-specialist (qwen3.8:27b)</option>
+                  <option value="sol-coder">sol-coder (qwen3-coder:30b)</option>
+                </select>
+              </div>
+            </div>
+
+            <button type="submit" class="btn-submit" id="btn-submit-ingest">
+              <svg class="icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              Launch Ingest & Create Note
+            </button>
+          </form>
+        </div>
+
+        <!-- Live Result Box -->
+        <div class="card" id="card-ingest-result">
+          <div class="card-header">
+            <h3 class="card-title">
+              <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+              Pipeline Output
+            </h3>
+            <span id="ingest-stage-badge" class="pill queued" style="display: none;">Queued</span>
+          </div>
+
+          <div id="ingest-empty" style="color: var(--text-dim); text-align: center; padding: 2.5rem 0;">
+            No active ingestion. Fill the form to process media and create your Obsidian note.
+          </div>
+
+          <div id="ingest-live" style="display: none;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.825rem; margin-bottom: 0.25rem;">
+              <span id="ingest-stage-text">Starting...</span>
+              <span id="ingest-percent">0%</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" id="ingest-progress-bar"></div>
+            </div>
+
+            <div class="result-box" id="ingest-finished-box" style="display: none;">
+              <div>
+                <span class="hint">Obsidian Vault Note</span>
+                <div style="margin-top: 0.35rem;">
+                  <span class="vault-link-badge" id="ingest-vault-link" title="Click to copy wikilink">
+                    <svg class="icon" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                    <span id="ingest-vault-link-text">[[Transcripts/...]]</span>
+                  </span>
+                </div>
+              </div>
+              <div id="ingest-summary-container">
+                <span class="hint">Executive Summary</span>
+                <div id="ingest-summary-text" style="white-space: pre-wrap; font-size: 0.8rem; background: var(--bg-surface); padding: 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); max-height: 250px; overflow-y: auto;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: SPEECH-TO-TEXT ONLY -->
+    <section id="tab-transcribe" class="tab-panel">
+      <div class="grid-2col">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">
+                <svg class="icon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                Direct Speech-To-Text
+              </h2>
+              <p class="card-desc">Transcribe media without note generation; inspect timestamped segments</p>
+            </div>
+          </div>
+
+          <form id="form-transcribe">
+            <div class="form-group">
+              <label for="transcribe-source">Audio or Video Path / URL</label>
+              <input type="text" id="transcribe-source" required placeholder="D:\AI\Cache\stt-test\meeting.wav">
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="transcribe-engine">Engine</label>
+                <select id="transcribe-engine">
+                  <option value="parakeet" selected>Parakeet TDT 0.6B (Default)</option>
+                  <option value="whisper">Faster-Whisper (Whisper CPU)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="transcribe-language">Language Code</label>
+                <input type="text" id="transcribe-language" placeholder="en (empty = auto-detect)">
+                <span class="hint">Languages Parakeet doesn't cover fallback to Whisper</span>
+              </div>
+            </div>
+
+            <button type="submit" class="btn-submit" id="btn-submit-transcribe">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path></svg>
+              Transcribe Speech
+            </button>
+          </form>
+        </div>
+
+        <!-- Result Box -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Transcript & Segments</h3>
+            <div style="display: flex; gap: 0.5rem;" id="transcribe-actions">
+              <button class="btn-header-action" id="btn-copy-transcript" style="display: none;">
+                <svg class="icon" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                Copy Text
+              </button>
+            </div>
+          </div>
+
+          <div id="transcribe-empty" style="color: var(--text-dim); text-align: center; padding: 2.5rem 0;">
+            No transcript generated yet.
+          </div>
+
+          <div id="transcribe-progress-area" style="display: none;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.825rem;">
+              <span id="transcribe-stage-text">Transcribing...</span>
+              <span id="transcribe-percent">0%</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" id="transcribe-progress-bar"></div>
+            </div>
+          </div>
+
+          <div class="transcript-viewer" id="transcribe-segments-list" style="display: none;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: DOWNLOADER -->
+    <section id="tab-download" class="tab-panel">
+      <div class="grid-2col">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                YouTube & Web Media Downloader
+              </h2>
+              <p class="card-desc">Download video or extract audio using workstation-optimized yt-dlp</p>
+            </div>
+          </div>
+
+          <form id="form-download">
+            <div class="form-group">
+              <label for="download-url">Media URL</label>
+              <input type="url" id="download-url" required placeholder="https://www.youtube.com/watch?v=...">
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="download-format">Format</label>
+                <select id="download-format">
+                  <option value="mp4" selected>MP4 Video</option>
+                  <option value="webm">WebM Video</option>
+                  <option value="mp3">MP3 Audio</option>
+                  <option value="wav">WAV Audio</option>
+                  <option value="m4a">M4A Audio</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="switch-label" style="margin-top: 1.5rem;">
+                  <span>Audio Only</span>
+                  <label class="switch">
+                    <input type="checkbox" id="download-audio-only">
+                    <span class="slider"></span>
+                  </label>
+                </label>
+              </div>
+            </div>
+
+            <button type="submit" class="btn-submit" id="btn-submit-download">
+              <svg class="icon" viewBox="0 0 24 24"><polyline points="7 10 12 15 17 10"></polyline></svg>
+              Queue Download
+            </button>
+          </form>
+        </div>
+
+        <div class="card" id="card-download-status">
+          <div class="card-header">
+            <h3 class="card-title">Download Status</h3>
+          </div>
+          <div id="download-empty" style="color: var(--text-dim); text-align: center; padding: 2.5rem 0;">
+            No active downloads.
+          </div>
+          <div id="download-live" style="display: none;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.825rem;">
+              <span id="download-speed">0 MB/s</span>
+              <span id="download-percent">0%</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" id="download-progress-bar"></div>
+            </div>
+            <div class="result-box" id="download-finished-box" style="display: none;">
+              <span class="hint">Saved to:</span>
+              <code id="download-output-path" style="word-break: break-all; color: var(--primary);"></code>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: CLIPPER -->
+    <section id="tab-clip" class="tab-panel">
+      <div class="grid-2col">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">
+                <svg class="icon" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><line x1="20" y1="4" x2="8.12" y2="15.88"></line><line x1="14.47" y1="14.48" x2="20" y2="20"></line></svg>
+                Media Clipper
+              </h2>
+              <p class="card-desc">Trim video or audio segments with keyframe-accurate FFmpeg cuts</p>
+            </div>
+          </div>
+
+          <form id="form-clip">
+            <div class="form-group">
+              <label for="clip-source">Source File or URL</label>
+              <input type="text" id="clip-source" required placeholder="D:\Output\Videos\sample.mp4">
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="clip-start">Start Timecode</label>
+                <input type="text" id="clip-start" required placeholder="00:01:00">
+              </div>
+              <div class="form-group">
+                <label for="clip-end">End Timecode</label>
+                <input type="text" id="clip-end" required placeholder="00:02:30">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="clip-format">Format</label>
+                <select id="clip-format">
+                  <option value="mp4" selected>MP4</option>
+                  <option value="webm">WebM</option>
+                  <option value="mp3">MP3</option>
+                  <option value="wav">WAV</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="switch-label" style="margin-top: 1.5rem;">
+                  <span>Re-encode (Frame-accurate)</span>
+                  <label class="switch">
+                    <input type="checkbox" id="clip-reencode">
+                    <span class="slider"></span>
+                  </label>
+                </label>
+              </div>
+            </div>
+
+            <button type="submit" class="btn-submit" id="btn-submit-clip">
+              <svg class="icon" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"></circle></svg>
+              Extract Segment
+            </button>
+          </form>
+        </div>
+
+        <div class="card" id="card-clip-status">
+          <div class="card-header">
+            <h3 class="card-title">Clip Output</h3>
+          </div>
+          <div id="clip-empty" style="color: var(--text-dim); text-align: center; padding: 2.5rem 0;">
+            No active clip extraction.
+          </div>
+          <div id="clip-live" style="display: none;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.825rem;">
+              <span id="clip-stage-text">Extracting clip...</span>
+              <span id="clip-percent">0%</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" id="clip-progress-bar"></div>
+            </div>
+            <div class="result-box" id="clip-finished-box" style="display: none;">
+              <span class="hint">Clipped File:</span>
+              <code id="clip-output-path" style="word-break: break-all; color: var(--primary);"></code>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: JOB MONITOR -->
+    <section id="tab-jobs" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">
+              <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+              Workstation Queue & History
+            </h2>
+            <p class="card-desc">Live jobs, status telemetry, and generated Vault links</p>
+          </div>
+          <button class="btn-header-action" id="btn-refresh-jobs">
+            <svg class="icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+            Refresh
+          </button>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Job ID</th>
+                <th>Type</th>
+                <th>Source</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Vault / Output</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="jobs-tbody">
+              <tr>
+                <td colspan="7" style="text-align: center; color: var(--text-dim); padding: 2rem;">Loading jobs...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast"></div>
+
+  <script>
+    // State management
+    const state = {
+      health: null,
+      jobs: [],
+      activePollers: {}
+    };
+
+    // DOM Elements
+    const statusDot = document.getElementById("status-dot");
+    const txtStatus = document.getElementById("txt-status");
+    const valStorage = document.getElementById("val-storage");
+    const valIdle = document.getElementById("val-idle");
+    const badgeActiveJobs = document.getElementById("badge-active-jobs");
+    const toastEl = document.getElementById("toast");
+
+    // Show Toast
+    function showToast(msg, duration = 3000) {
+      toastEl.textContent = msg;
+      toastEl.style.display = "flex";
+      setTimeout(() => { toastEl.style.display = "none"; }, duration);
+    }
+
+    // Tab Navigation
+    document.querySelectorAll(".tab-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+        btn.classList.add("active");
+        document.getElementById(btn.dataset.tab).classList.add("active");
+        if (btn.dataset.tab === "tab-jobs") fetchJobs();
+      });
+    });
+
+    // Ingest Engine Switcher
+    const ingestEngine = document.getElementById("ingest-engine");
+    const whisperSizeGroup = document.getElementById("group-whisper-size");
+    ingestEngine.addEventListener("change", () => {
+      whisperSizeGroup.style.display = ingestEngine.value === "whisper" ? "flex" : "none";
+    });
+
+    // Summarize Switcher
+    const ingestSummarize = document.getElementById("ingest-summarize");
+    const llmModelGroup = document.getElementById("group-llm-model");
+    ingestSummarize.addEventListener("change", () => {
+      llmModelGroup.style.display = ingestSummarize.checked ? "flex" : "none";
+    });
+
+    // Fetch Health
+    async function fetchHealth() {
+      try {
+        const res = await fetch("/api/v1/health");
+        if (!res.ok) throw new Error("Health check failed");
+        const data = await res.json();
+        state.health = data;
+
+        statusDot.classList.remove("offline");
+        txtStatus.textContent = "Online (" + data.workstation + ")";
+        valStorage.textContent = data.storage ? `${data.storage.d_drive_free_gb} GB Free` : "D: Free";
+        valIdle.textContent = `${data.idle_seconds}s / ${data.idle_timeout_seconds}s`;
+        badgeActiveJobs.textContent = data.active_jobs || 0;
+      } catch (err) {
+        statusDot.classList.add("offline");
+        txtStatus.textContent = "Offline / Idle";
+        valIdle.textContent = "--";
+      }
+    }
+
+    // Fetch Ollama Models
+    async function fetchModels() {
+      try {
+        const res = await fetch("/api/v1/models");
+        if (res.ok) {
+          const data = await res.json();
+          const select = document.getElementById("ingest-llm-model");
+          if (data.models && data.models.length > 0) {
+            select.innerHTML = "";
+            data.models.forEach(m => {
+              const opt = document.createElement("option");
+              opt.value = m;
+              opt.textContent = m === "sol-fast" ? `${m} (fast worker default)` : m;
+              if (m === "sol-fast") opt.selected = true;
+              select.appendChild(opt);
+            });
+          }
+        }
+      } catch (e) {
+        console.warn("Could not load dynamic models", e);
+      }
+    }
+
+    // Fetch Jobs List
+    async function fetchJobs() {
+      try {
+        const res = await fetch("/api/v1/jobs");
+        if (!res.ok) return;
+        const jobs = await res.json();
+        state.jobs = jobs;
+        renderJobsTable(jobs);
+      } catch (e) {
+        console.error("Fetch jobs error", e);
+      }
+    }
+
+    function renderJobsTable(jobs) {
+      const tbody = document.getElementById("jobs-tbody");
+      if (!jobs || jobs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-dim); padding: 2rem;">No jobs recorded yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = jobs.map(j => {
+        let outputLink = "-";
+        if (j.obsidian_link) {
+          outputLink = `<span class="vault-link-badge" onclick="navigator.clipboard.writeText('${j.obsidian_link}'); showToast('Copied ${j.obsidian_link}');">${j.obsidian_link}</span>`;
+        } else if (j.output_files && Object.keys(j.output_files).length > 0) {
+          const firstPath = Object.values(j.output_files)[0];
+          const fileName = firstPath.split(/[\\\\/]/).pop();
+          outputLink = `<span title="${firstPath}" style="font-family: ui-monospace; font-size: 0.8rem; color: var(--primary); cursor: pointer;" onclick="navigator.clipboard.writeText('${firstPath.replace(/\\\\/g, '\\\\\\\\')}'); showToast('Copied path!');">${fileName}</span>`;
+        }
+
+        const pillClass = j.status || "queued";
+        const shortSource = (j.source || "").length > 40 ? j.source.substring(0, 38) + "..." : j.source;
+        const createdAt = j.created_at ? new Date(j.created_at).toLocaleTimeString() : "-";
+
+        return `
+          <tr>
+            <td><code style="color: var(--text-dim);">${j.job_id.substring(0, 8)}</code></td>
+            <td><strong>${j.type}</strong></td>
+            <td title="${j.source || ''}">${shortSource || '-'}</td>
+            <td><span class="pill ${pillClass}">${j.status}</span></td>
+            <td>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <div class="progress-track" style="width: 60px;">
+                  <div class="progress-fill" style="width: ${j.progress_percent || 0}%;"></div>
+                </div>
+                <span style="font-size: 0.75rem;">${Math.round(j.progress_percent || 0)}%</span>
+              </div>
+            </td>
+            <td>${outputLink}</td>
+            <td style="color: var(--text-dim);">${createdAt}</td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    // Generic Job Poller
+    function pollJob(jobId, onProgress, onComplete, onError) {
+      if (state.activePollers[jobId]) clearInterval(state.activePollers[jobId]);
+      const poller = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/v1/status/${jobId}`);
+          if (!res.ok) throw new Error("Status failed");
+          const job = await res.json();
+
+          if (onProgress) onProgress(job);
+
+          if (job.status === "completed") {
+            clearInterval(poller);
+            delete state.activePollers[jobId];
+            if (onComplete) onComplete(job);
+            fetchHealth();
+            fetchJobs();
+          } else if (job.status === "failed" || job.status === "cancelled") {
+            clearInterval(poller);
+            delete state.activePollers[jobId];
+            if (onError) onError(job);
+            fetchHealth();
+            fetchJobs();
+          }
+        } catch (err) {
+          clearInterval(poller);
+          delete state.activePollers[jobId];
+          if (onError) onError({ error: err.message });
+        }
+      }, 1500);
+      state.activePollers[jobId] = poller;
+    }
+
+    // FORM 1: Ingest
+    document.getElementById("form-ingest").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById("btn-submit-ingest");
+      const emptyBox = document.getElementById("ingest-empty");
+      const liveBox = document.getElementById("ingest-live");
+      const stageBadge = document.getElementById("ingest-stage-badge");
+      const stageText = document.getElementById("ingest-stage-text");
+      const percentText = document.getElementById("ingest-percent");
+      const progressBar = document.getElementById("ingest-progress-bar");
+      const finishedBox = document.getElementById("ingest-finished-box");
+      const vaultLink = document.getElementById("ingest-vault-link");
+      const vaultLinkText = document.getElementById("ingest-vault-link-text");
+      const summaryContainer = document.getElementById("ingest-summary-container");
+      const summaryText = document.getElementById("ingest-summary-text");
+
+      const body = {
+        source: document.getElementById("ingest-source").value.trim(),
+        clip_start: document.getElementById("ingest-clip-start").value.trim() || null,
+        clip_end: document.getElementById("ingest-clip-end").value.trim() || null,
+        engine: document.getElementById("ingest-engine").value,
+        model_size: document.getElementById("ingest-whisper-size").value,
+        summarize: document.getElementById("ingest-summarize").checked,
+        llm_model: document.getElementById("ingest-llm-model").value
+      };
+
+      btn.disabled = true;
+      emptyBox.style.display = "none";
+      liveBox.style.display = "block";
+      finishedBox.style.display = "none";
+      stageBadge.style.display = "inline-flex";
+      stageBadge.className = "pill queued";
+      stageBadge.textContent = "Queued";
+      stageText.textContent = "Queuing pipeline job...";
+      percentText.textContent = "0%";
+      progressBar.style.width = "5%";
+
+      try {
+        const res = await fetch("/api/v1/ingest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || "Ingest request rejected");
+        }
+        const data = await res.json();
+        showToast("Ingestion pipeline queued: " + data.job_id);
+
+        pollJob(
+          data.job_id,
+          (job) => {
+            stageBadge.className = `pill ${job.status}`;
+            stageBadge.textContent = job.status;
+            stageText.textContent = job.speed || "Processing pipeline...";
+            percentText.textContent = `${Math.round(job.progress_percent)}%`;
+            progressBar.style.width = `${job.progress_percent}%`;
+          },
+          (job) => {
+            btn.disabled = false;
+            stageBadge.className = "pill completed";
+            stageBadge.textContent = "Completed";
+            stageText.textContent = "Pipeline finished successfully!";
+            percentText.textContent = "100%";
+            progressBar.style.width = "100%";
+            finishedBox.style.display = "flex";
+
+            if (job.obsidian_link) {
+              vaultLinkText.textContent = job.obsidian_link;
+              vaultLink.onclick = () => {
+                navigator.clipboard.writeText(job.obsidian_link);
+                showToast("Copied " + job.obsidian_link);
+              };
+            }
+            if (job.output_files && job.output_files.vault_note) {
+              summaryContainer.style.display = "block";
+              summaryText.textContent = `Note written to: ${job.output_files.vault_note}`;
+            }
+            showToast("Vault Note Generated!");
+          },
+          (job) => {
+            btn.disabled = false;
+            stageBadge.className = "pill failed";
+            stageBadge.textContent = "Failed";
+            stageText.textContent = job.error || "Job failed";
+            showToast("Pipeline failed: " + (job.error || "unknown error"));
+          }
+        );
+      } catch (err) {
+        btn.disabled = false;
+        stageBadge.className = "pill failed";
+        stageBadge.textContent = "Error";
+        stageText.textContent = err.message;
+        showToast("Error: " + err.message);
+      }
+    });
+
+    // FORM 2: Transcribe Only
+    document.getElementById("form-transcribe").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById("btn-submit-transcribe");
+      const emptyBox = document.getElementById("transcribe-empty");
+      const progressArea = document.getElementById("transcribe-progress-area");
+      const stageText = document.getElementById("transcribe-stage-text");
+      const percentText = document.getElementById("transcribe-percent");
+      const progressBar = document.getElementById("transcribe-progress-bar");
+      const segmentsList = document.getElementById("transcribe-segments-list");
+      const copyBtn = document.getElementById("btn-copy-transcript");
+
+      const body = {
+        source: document.getElementById("transcribe-source").value.trim(),
+        engine: document.getElementById("transcribe-engine").value,
+        language: document.getElementById("transcribe-language").value.trim() || null
+      };
+
+      btn.disabled = true;
+      emptyBox.style.display = "none";
+      progressArea.style.display = "block";
+      segmentsList.style.display = "none";
+      segmentsList.innerHTML = "";
+      copyBtn.style.display = "none";
+      stageText.textContent = "Queuing transcription...";
+      percentText.textContent = "0%";
+      progressBar.style.width = "5%";
+
+      try {
+        const res = await fetch("/api/v1/transcribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || "Transcription rejected");
+        }
+        const data = await res.json();
+        showToast("Transcription queued: " + data.job_id);
+
+        pollJob(
+          data.job_id,
+          (job) => {
+            stageText.textContent = job.speed || "Transcribing...";
+            percentText.textContent = `${Math.round(job.progress_percent)}%`;
+            progressBar.style.width = `${job.progress_percent}%`;
+          },
+          async (job) => {
+            btn.disabled = false;
+            progressArea.style.display = "none";
+            showToast("Transcription Complete!");
+
+            segmentsList.style.display = "flex";
+            copyBtn.style.display = "inline-flex";
+
+            if (job.output_files) {
+              const info = document.createElement("div");
+              info.style.fontSize = "0.8rem";
+              info.style.color = "var(--accent)";
+              info.innerHTML = `Completed! Output text: <code>${job.output_files.text || ''}</code>`;
+              segmentsList.appendChild(info);
+
+              copyBtn.onclick = () => {
+                navigator.clipboard.writeText(job.output_files.text || "");
+                showToast("Copied transcript path");
+              };
+            }
+          },
+          (job) => {
+            btn.disabled = false;
+            stageText.textContent = "Failed: " + (job.error || "Unknown");
+            showToast("Transcription failed");
+          }
+        );
+      } catch (err) {
+        btn.disabled = false;
+        stageText.textContent = err.message;
+        showToast("Error: " + err.message);
+      }
+    });
+
+    // FORM 3: Download
+    document.getElementById("form-download").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById("btn-submit-download");
+      const emptyBox = document.getElementById("download-empty");
+      const liveBox = document.getElementById("download-live");
+      const speedText = document.getElementById("download-speed");
+      const percentText = document.getElementById("download-percent");
+      const progressBar = document.getElementById("download-progress-bar");
+      const finishedBox = document.getElementById("download-finished-box");
+      const outputPath = document.getElementById("download-output-path");
+
+      const body = {
+        url: document.getElementById("download-url").value.trim(),
+        format: document.getElementById("download-format").value,
+        audio_only: document.getElementById("download-audio-only").checked
+      };
+
+      btn.disabled = true;
+      emptyBox.style.display = "none";
+      liveBox.style.display = "block";
+      finishedBox.style.display = "none";
+      speedText.textContent = "Starting download...";
+      percentText.textContent = "0%";
+      progressBar.style.width = "5%";
+
+      try {
+        const res = await fetch("/api/v1/download", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || "Download rejected");
+        }
+        const data = await res.json();
+        showToast("Download queued: " + data.job_id);
+
+        pollJob(
+          data.job_id,
+          (job) => {
+            speedText.textContent = job.speed ? `${job.speed} ${job.eta ? '(' + job.eta + ')' : ''}` : "Downloading...";
+            percentText.textContent = `${Math.round(job.progress_percent)}%`;
+            progressBar.style.width = `${job.progress_percent}%`;
+          },
+          (job) => {
+            btn.disabled = false;
+            percentText.textContent = "100%";
+            progressBar.style.width = "100%";
+            finishedBox.style.display = "block";
+            outputPath.textContent = (job.output_files && job.output_files.media) || "Done";
+            showToast("Media downloaded successfully!");
+          },
+          (job) => {
+            btn.disabled = false;
+            speedText.textContent = "Download failed: " + (job.error || "");
+            showToast("Download failed");
+          }
+        );
+      } catch (err) {
+        btn.disabled = false;
+        speedText.textContent = err.message;
+        showToast("Error: " + err.message);
+      }
+    });
+
+    // FORM 4: Clipper
+    document.getElementById("form-clip").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById("btn-submit-clip");
+      const emptyBox = document.getElementById("clip-empty");
+      const liveBox = document.getElementById("clip-live");
+      const stageText = document.getElementById("clip-stage-text");
+      const percentText = document.getElementById("clip-percent");
+      const progressBar = document.getElementById("clip-progress-bar");
+      const finishedBox = document.getElementById("clip-finished-box");
+      const outputPath = document.getElementById("clip-output-path");
+
+      const body = {
+        source: document.getElementById("clip-source").value.trim(),
+        start_time: document.getElementById("clip-start").value.trim(),
+        end_time: document.getElementById("clip-end").value.trim(),
+        format: document.getElementById("clip-format").value,
+        re_encode: document.getElementById("clip-reencode").checked
+      };
+
+      btn.disabled = true;
+      emptyBox.style.display = "none";
+      liveBox.style.display = "block";
+      finishedBox.style.display = "none";
+      stageText.textContent = "Clipping segment...";
+      percentText.textContent = "0%";
+      progressBar.style.width = "10%";
+
+      try {
+        const res = await fetch("/api/v1/clip", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || "Clip rejected");
+        }
+        const data = await res.json();
+        showToast("Clip queued: " + data.job_id);
+
+        pollJob(
+          data.job_id,
+          (job) => {
+            percentText.textContent = `${Math.round(job.progress_percent)}%`;
+            progressBar.style.width = `${job.progress_percent}%`;
+          },
+          (job) => {
+            btn.disabled = false;
+            percentText.textContent = "100%";
+            progressBar.style.width = "100%";
+            stageText.textContent = "Clip extracted successfully!";
+            finishedBox.style.display = "block";
+            outputPath.textContent = (job.output_files && job.output_files.clip) || "Done";
+            showToast("Clip finished!");
+          },
+          (job) => {
+            btn.disabled = false;
+            stageText.textContent = "Failed: " + (job.error || "");
+            showToast("Clip failed");
+          }
+        );
+      } catch (err) {
+        btn.disabled = false;
+        stageText.textContent = err.message;
+        showToast("Error: " + err.message);
+      }
+    });
+
+    // Header buttons
+    document.getElementById("btn-refresh").addEventListener("click", () => {
+      fetchHealth();
+      fetchJobs();
+      showToast("Refreshed status");
+    });
+    document.getElementById("btn-refresh-jobs").addEventListener("click", () => {
+      fetchJobs();
+      showToast("Refreshed job queue");
+    });
+
+    document.getElementById("btn-shutdown").addEventListener("click", async () => {
+      if (!confirm("Are you sure you want to shut down media-api? This releases all host threads and RAM immediately. It will wake back up on your next request.")) return;
+      try {
+        const res = await fetch("/api/v1/shutdown", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ force: false })
+        });
+        const data = await res.json();
+        showToast(data.message || "Server shutting down...");
+        setTimeout(() => fetchHealth(), 1000);
+      } catch (err) {
+        showToast("Shutdown error: " + err.message);
+      }
+    });
+
+    // Initialize
+    fetchHealth();
+    fetchModels();
+    fetchJobs();
+    setInterval(fetchHealth, 8000);
+  </script>
+</body>
+</html>

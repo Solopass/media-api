@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, HTTPException
@@ -21,8 +22,10 @@ def run_transcribe_task(job_id: str, req: TranscribeRequest):
             job_manager.update_job(job_id, progress_percent=10.0, speed="Downloading...")
             info = YtDlpService.download(req.source, audio_only=True, target_format="mp3")
             source_path = Path(info["file_path"])
+            media = {"title": info.get("title"), "uploader": info.get("uploader"), "url": req.source}
         else:
             source_path = normalize_path(req.source)
+            media = {"title": source_path.stem, "uploader": None, "url": None}
 
         if not source_path.exists():
             raise FileNotFoundError(f"Source media not found: {source_path}")
@@ -47,13 +50,19 @@ def run_transcribe_task(job_id: str, req: TranscribeRequest):
         with open(out_txt, "w", encoding="utf-8") as f:
             f.write(trans_res["full_text"])
 
+        # Full result (segments with timestamps, engine, duration, media info) for pipelines that build notes
+        out_json = audio_path.with_suffix(".transcript.json")
+        with open(out_json, "w", encoding="utf-8") as f:
+            json.dump({**trans_res, "media": media, "source": req.source, "audio": str(audio_path)}, f, ensure_ascii=False, indent=1)
+
         job_manager.update_job(
             job_id,
             status=JobStatus.COMPLETED,
             progress_percent=100.0,
             output_files={
                 "audio": str(audio_path),
-                "text": str(out_txt)
+                "text": str(out_txt),
+                "transcript_json": str(out_json)
             }
         )
     except Exception as e:

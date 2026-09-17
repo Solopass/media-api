@@ -7,20 +7,25 @@ from typing import Dict, Any, List
 
 from app.config import settings
 
-def summarize_with_ollama(title: str, text: str, model_name: str = "qwen2.5-coder:7b") -> str:
-    """Query local Ollama instance for an executive briefing summary."""
-    prompt = (
-        f"You are the executive intelligence summarizer on the GAMINGPC workstation.\n"
-        f"Generate a crisp, structured Markdown summary of the following transcript.\n"
-        f"Use bullet points, bold keywords, and an 'Actionable Takeaways' section.\n\n"
-        f"Title: {title}\n\n"
-        f"Transcript:\n{text[:12000]}\n\n"
-        f"Summary:"
+def summarize_with_ollama(title: str, text: str, model_name: str = "sol-fast") -> str:
+    """Query local Ollama chat API instance for an executive briefing summary."""
+    system_instruction = (
+        "You are the executive intelligence summarizer on the SOL workstation.\n"
+        "Generate a crisp, structured Markdown summary of the following transcript.\n"
+        "Use bullet points, bold keywords, and an 'Actionable Takeaways' section.\n"
+        "Never invent facts, dates, or numbers not present in the transcript."
     )
+    user_prompt = f"Title: {title}\n\nTranscript:\n{text[:45000]}\n\nSummary:"
     req_data = json.dumps({
         "model": model_name,
-        "prompt": prompt,
-        "stream": False
+        "messages": [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": user_prompt}
+        ],
+        "stream": False,
+        "options": {
+            "seed": 7
+        }
     }).encode("utf-8")
 
     req = urllib.request.Request(
@@ -29,8 +34,11 @@ def summarize_with_ollama(title: str, text: str, model_name: str = "qwen2.5-code
         headers={"Content-Type": "application/json"}
     )
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        with urllib.request.urlopen(req, timeout=120) as resp:
             data = json.loads(resp.read().decode("utf-8"))
+            msg = data.get("message", {}).get("content")
+            if msg:
+                return msg.strip()
             return data.get("response", "").strip()
     except Exception as e:
         return f"*(Automatic LLM summary unavailable: {e})*"

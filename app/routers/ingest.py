@@ -71,7 +71,7 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
         # Step 6: Trigger Semantic Vector Re-Index (Non-blocking)
         try:
             import subprocess
-            subprocess.run(["find-concept", "--reindex"], capture_output=True, timeout=15)
+            subprocess.Popen(["find-concept", "--reindex"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception:
             pass
 

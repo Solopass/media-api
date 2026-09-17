@@ -64,3 +64,47 @@ def test_transcribe_endpoint_reports_engine():
         response = client.post("/api/v1/transcribe", json={"source": "/mnt/d/x.wav"})
     assert response.status_code == 200
     assert "parakeet" in response.json()["message"]
+
+
+def test_run_transcribe_task_generates_transcript_json(tmp_path):
+    import json
+    from pathlib import Path
+    from app.routers.transcribe import run_transcribe_task
+    from app.models.schemas import TranscribeRequest
+    from app.queue.manager import job_manager
+
+    fake_audio = tmp_path / "sample.wav"
+    fake_audio.write_bytes(b"RIFFdummywavdata")
+
+    fake_res = {
+        "engine": "parakeet",
+        "model": "parakeet-tdt-0.6b-v3-q8_0",
+        "language": "en",
+        "duration": 5.2,
+        "segments": [{"id": 0, "start": 0.0, "end": 2.0, "text": "Hello world"}],
+        "full_text": "Hello world",
+    }
+
+    job_id = job_manager.create_job("transcribe", str(fake_audio))
+    req = TranscribeRequest(source=str(fake_audio), engine="parakeet")
+
+    with mock.patch("app.routers.transcribe.stt_service.transcribe", return_value=fake_res):
+        run_transcribe_task(job_id, req)
+
+    job = job_manager.get_job(job_id)
+    assert job.status == "completed"
+    assert "transcript_json" in job.output_files
+    assert "text" in job.output_files
+
+    json_file = Path(job.output_files["transcript_json"])
+    assert json_file.exists()
+    data = json.loads(json_file.read_text(encoding="utf-8"))
+    assert data["full_text"] == "Hello world"
+    assert data["media"]["title"] == "sample"
+    assert len(data["segments"]) == 1
+    assert data["segments"][0]["text"] == "Hello world"
+
+    txt_file = Path(job.output_files["text"])
+    assert txt_file.exists()
+    assert txt_file.read_text(encoding="utf-8") == "Hello world"
+

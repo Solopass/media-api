@@ -7,8 +7,8 @@ class Settings(BaseModel):
     app_name: str = "Workstation Linux Media API"
     app_version: str = "1.0.0"
     port: int = 8080
-    host: str = "0.0.0.0"
-    cors_origins: list[str] = ["*"]
+    host: str = "127.0.0.1"
+    cors_origins: list[str] = ["http://127.0.0.1:8080", "http://localhost:8080"]
 
     # Storage Paths (Strictly on D:\ per workstation rules)
     workspace_dir: Path = Path("/mnt/d/Workspace/media-api")
@@ -27,8 +27,8 @@ class Settings(BaseModel):
     whisper_models_dir: Path = Path("/mnt/d/AI/Models/Whisper")
     
     # Local LLM Inference
-    ollama_api_url: str = "http://127.0.0.1:11434/api/generate"
-    default_llm_model: str = "qwen2.5-coder:7b"
+    ollama_api_url: str = "http://127.0.0.1:11434/api/chat"
+    default_llm_model: str = "sol-fast"
     default_whisper_model: str = "tiny"  # tiny/base/small/medium
 
     # Speech-to-text engine: "parakeet" (default, most accurate in D:\OBVLT\reports\stt-bench.md) or "whisper".

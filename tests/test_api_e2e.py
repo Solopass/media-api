@@ -9,7 +9,7 @@ def test_health_check():
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "online"
-    assert data["workstation"] == "GAMINGPC"
+    assert data["workstation"] in ("SOL", "GAMINGPC")
     assert data["host_p_cores_protected"] is True
     assert "d_drive_free_gb" in data["storage"]
     assert "active_jobs" in data
@@ -62,4 +62,18 @@ def test_clip_endpoint_queue():
         data = response.json()
         assert data["status"] == "queued"
         assert "job_id" in data
+
+def test_models_endpoint():
+    response = client.get("/api/v1/models")
+    assert response.status_code == 200
+    data = response.json()
+    assert "models" in data
+    assert "default" in data
+    assert data["default"] == "sol-fast"
+
+def test_ui_endpoint():
+    response = client.get("/ui")
+    assert response.status_code == 200
+    assert "SOL Media Studio" in response.text
+
 

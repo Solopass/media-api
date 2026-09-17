@@ -43,7 +43,7 @@ class IngestRequest(BaseModel):
     engine: Optional[str] = Field(default=None, description="STT engine: parakeet or whisper (default from MEDIA_API_STT_ENGINE, parakeet)")
     model_size: str = Field(default="tiny", description="Whisper model size (whisper engine only)")
     summarize: bool = Field(default=True, description="Generate executive summary with local Ollama LLM")
-    llm_model: str = Field(default="qwen2.5-coder:7b", description="Local LLM model to query")
+    llm_model: str = Field(default="sol-fast", description="Local LLM model to query")
     priority: str = Field(default="normal", description="Queue priority")
 
 class JobResponse(BaseModel):

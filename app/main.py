@@ -4,11 +4,15 @@ import time
 import signal
 import shutil
 import asyncio
+import json
+import urllib.request
 import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.responses import FileResponse
+from starlette.staticfiles import StaticFiles
 
 from app.config import settings
 from app.queue.manager import job_manager
@@ -84,6 +88,10 @@ app.include_router(transcribe.router)
 app.include_router(ingest.router)
 app.include_router(jobs.router)
 
+static_dir = settings.workspace_dir / "app" / "static"
+static_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
 @app.get("/api/v1/health")
 def health_check():
     d_stat = shutil.disk_usage("/mnt/d")
@@ -91,10 +99,10 @@ def health_check():
     idle_sec = int(time.time() - job_manager.get_last_activity_time())
     return {
         "status": "online",
-        "workstation": "GAMINGPC",
+        "workstation": "SOL",
         "app": settings.app_name,
         "version": settings.app_version,
-        "hardware_affinity": "E-Cores 8-15 (nice +10)",
+        "hardware_affinity": "E-Cores (nice +10)",
         "host_p_cores_protected": True,
         "active_jobs": active_jobs,
         "idle_seconds": idle_sec,
@@ -105,6 +113,18 @@ def health_check():
             "c_drive_protected_zero_leak": True
         }
     }
+
+@app.get("/api/v1/models", tags=["Local LLM"])
+def list_local_models():
+    """Fetch currently installed Ollama models for the UI dropdown."""
+    try:
+        req = urllib.request.Request("http://127.0.0.1:11434/api/tags", headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            models = [m["name"] for m in data.get("models", [])]
+            return {"models": models, "default": settings.default_llm_model}
+    except Exception:
+        return {"models": ["sol-fast", "sol-specialist", "sol-coder", "sol-vision"], "default": settings.default_llm_model}
 
 @app.post("/api/v1/shutdown", response_model=ShutdownResponse, tags=["Lifecycle"])
 async def shutdown_server(req: ShutdownRequest = ShutdownRequest()):
@@ -128,8 +148,20 @@ async def shutdown_server(req: ShutdownRequest = ShutdownRequest()):
         scheduled=True
     )
 
+@app.get("/ui", tags=["GUI"])
+def web_ui():
+    index_file = settings.workspace_dir / "app" / "static" / "index.html"
+    if index_file.exists():
+        return FileResponse(str(index_file))
+    raise HTTPException(status_code=404, detail="UI index.html not found")
+
 @app.get("/")
-def root():
+def root(request: Request):
+    accept = request.headers.get("accept", "")
+    index_file = settings.workspace_dir / "app" / "static" / "index.html"
+    # Serve UI for web browsers navigating to root
+    if "text/html" in accept and index_file.exists():
+        return FileResponse(str(index_file))
     return {
         "service": settings.app_name,
         "docs": "/docs",
@@ -141,7 +173,8 @@ def root():
             "/api/v1/ingest",
             "/api/v1/status/{id}",
             "/api/v1/jobs",
-            "/api/v1/shutdown"
+            "/api/v1/shutdown",
+            "/api/v1/models"
         ]
     }
 
