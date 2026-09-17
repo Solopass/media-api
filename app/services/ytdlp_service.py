@@ -11,6 +11,13 @@ def sanitize_filename(name: str) -> str:
     s = re.sub(r"\s+", "_", s)
     return s[:60].strip("._")
 
+def _get_cookiefile() -> Optional[str]:
+    """Auto-detect cookies.txt in workstation cache directory if present."""
+    cookie_path = settings.cache_dir / "cookies.txt"
+    if cookie_path.exists():
+        return str(cookie_path)
+    return None
+
 class YtDlpService:
     @staticmethod
     def extract_info(url: str) -> Dict[str, Any]:
@@ -19,6 +26,9 @@ class YtDlpService:
             "no_warnings": True,
             "skip_download": True
         }
+        cookiefile = _get_cookiefile()
+        if cookiefile:
+            ydl_opts["cookiefile"] = cookiefile
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             return ydl.extract_info(url, download=False)
 
@@ -31,6 +41,9 @@ class YtDlpService:
             "extract_flat": True,
             "socket_timeout": 6,
         }
+        cookiefile = _get_cookiefile()
+        if cookiefile:
+            ydl_opts["cookiefile"] = cookiefile
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             if not info:
@@ -76,6 +89,10 @@ class YtDlpService:
             "no_warnings": True,
             "restrictfilenames": True
         }
+
+        cookiefile = _get_cookiefile()
+        if cookiefile:
+            ydl_opts["cookiefile"] = cookiefile
 
         if progress_hook:
             ydl_opts["progress_hooks"] = [progress_hook]

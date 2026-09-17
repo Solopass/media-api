@@ -2559,12 +2559,16 @@
           if (targetTab === "ingest") {
             const subfolderVal = document.getElementById("ingest-subfolder") ? document.getElementById("ingest-subfolder").value.trim() || "Transcripts" : "Transcripts";
             const tagsVal = document.getElementById("ingest-tags") ? document.getElementById("ingest-tags").value.split(",").map(t => t.trim()).filter(Boolean) : [];
+            const presetVal = document.getElementById("ingest-summary-preset") ? document.getElementById("ingest-summary-preset").value : "executive";
+            const focusVal = document.getElementById("ingest-summary-focus") ? (document.getElementById("ingest-summary-focus").value.trim() || null) : null;
             const body = {
               source: uploadedPath,
               engine: document.getElementById("ingest-engine").value,
               model_size: document.getElementById("ingest-whisper-size").value,
               summarize: document.getElementById("ingest-summarize").checked,
               llm_model: document.getElementById("ingest-llm-model").value,
+              summary_preset: presetVal,
+              summary_focus: focusVal,
               vault_subfolder: subfolderVal,
               tags: tagsVal
             };
