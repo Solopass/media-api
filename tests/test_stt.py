@@ -146,3 +146,90 @@ def test_run_ingest_pipeline_generates_sidecar_and_obsidian_uri(tmp_path):
     assert "obsidian://open?vault=Vault" in job.obsidian_uri
 
 
+def test_run_ingest_pipeline_with_custom_subfolder_and_tags(tmp_path):
+    from pathlib import Path
+    from app.routers.ingest import run_ingest_pipeline
+    from app.models.schemas import IngestRequest
+    from app.queue.manager import job_manager
+
+    fake_audio = tmp_path / "sync_call.wav"
+    fake_audio.write_bytes(b"RIFFdummywavdata")
+
+    fake_res = {
+        "engine": "parakeet",
+        "model": "parakeet-tdt-0.6b-v3-q8_0",
+        "language": "en",
+        "duration": 4.0,
+        "segments": [{"id": 0, "start": 0.0, "end": 2.0, "text": "Sync call transcript"}],
+        "full_text": "Sync call transcript",
+    }
+
+    job_id = job_manager.create_job("ingest", str(fake_audio))
+    req = IngestRequest(
+        source=str(fake_audio),
+        engine="parakeet",
+        summarize=False,
+        vault_subfolder="Transcripts/Meetings",
+        tags=["sol-planning", "weekly"]
+    )
+
+    fake_note = tmp_path / "Transcripts" / "Meetings" / "2026-09-17_sync_call.md"
+    fake_note.parent.mkdir(parents=True, exist_ok=True)
+    fake_note.write_text("# Meeting note\n\nTags: #sol-planning #weekly", encoding="utf-8")
+
+    with mock.patch("app.routers.ingest.stt_service.transcribe", return_value=fake_res), \
+         mock.patch("app.routers.ingest.ObsidianService.create_transcript_note", return_value=fake_note) as mock_create, \
+         mock.patch("subprocess.Popen"):
+        run_ingest_pipeline(job_id, req)
+
+    job = job_manager.get_job(job_id)
+    assert job.status == "completed"
+    assert mock_create.called
+    call_kwargs = mock_create.call_args[1]
+    assert call_kwargs["vault_subfolder"] == "Transcripts/Meetings"
+    assert "sol-planning" in call_kwargs["custom_tags"]
+    assert "weekly" in call_kwargs["custom_tags"]
+
+
+def test_obsidian_service_subfolder_and_tags(tmp_path):
+    from app.services.obsidian_service import ObsidianService
+    from app.config import settings
+
+    vault_dir = tmp_path / "Vault" / "Transcripts"
+    output_dir = tmp_path / "Output" / "Transcripts"
+    vault_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    media_info = {
+        "title": "Subfolder Test Note",
+        "file_path": "/mnt/d/AI/Cache/uploads/test.wav",
+        "url": "https://example.com/test",
+    }
+    transcription = {
+        "duration": 135,
+        "model": "parakeet-tdt-0.6b-v3-q8_0",
+        "language": "en",
+        "segments": [{"start": 0.0, "end": 2.0, "text": "Test speech"}]
+    }
+
+    with mock.patch.object(settings, "vault_transcripts", vault_dir), \
+         mock.patch.object(settings, "output_transcripts", output_dir), \
+         mock.patch.object(settings, "vault_dashboard", tmp_path / "Transcripts_Dashboard.md"):
+        note_path = ObsidianService.create_transcript_note(
+            media_info=media_info,
+            transcription=transcription,
+            summary="Executive summary test",
+            vault_subfolder="Transcripts/SpecialEvents",
+            custom_tags=["custom-tag-1", "custom-tag-2"]
+        )
+
+    assert note_path.exists()
+    assert "SpecialEvents" in str(note_path)
+    content = note_path.read_text(encoding="utf-8")
+    assert "custom-tag-1" in content
+    assert "custom-tag-2" in content
+    assert "media" in content
+
+
+
+

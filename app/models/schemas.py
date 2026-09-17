@@ -44,6 +44,8 @@ class IngestRequest(BaseModel):
     model_size: str = Field(default="tiny", description="Whisper model size (whisper engine only)")
     summarize: bool = Field(default=True, description="Generate executive summary with local Ollama LLM")
     llm_model: str = Field(default="sol-fast", description="Local LLM model to query")
+    vault_subfolder: str = Field(default="Transcripts", description="Subfolder path inside D:\\AI\\Vault")
+    tags: list[str] = Field(default_factory=list, description="Custom tags for Obsidian YAML frontmatter")
     priority: str = Field(default="normal", description="Queue priority")
 
 class JobResponse(BaseModel):

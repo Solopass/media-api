@@ -123,9 +123,20 @@ def get_vault_note(path: str = Query(..., description="Path to markdown note in 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read note: {e}")
 
-    encoded_file = urllib.parse.quote(f"Transcripts/{target_path.name}")
+    try:
+        rel_to_vault = target_path.resolve().relative_to(Path("/mnt/d/AI/Vault").resolve())
+    except Exception:
+        try:
+            rel_to_vault = target_path.resolve().relative_to(Path("/mnt/d/Output/Transcripts").resolve())
+            rel_to_vault = Path("Transcripts") / rel_to_vault
+        except Exception:
+            rel_to_vault = Path(f"Transcripts/{target_path.name}")
+
+    rel_posix = rel_to_vault.as_posix()
+    encoded_file = urllib.parse.quote(rel_posix)
     obsidian_uri = f"obsidian://open?vault=Vault&file={encoded_file}"
-    obsidian_link = f"[[Transcripts/{target_path.stem}]]"
+    parent_posix = rel_to_vault.parent.as_posix()
+    obsidian_link = f"[[{parent_posix}/{target_path.stem}]]" if parent_posix != "." else f"[[{target_path.stem}]]"
 
     return {
         "filename": target_path.name,

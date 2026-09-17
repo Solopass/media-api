@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import urllib.parse
 from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, HTTPException
@@ -72,10 +73,13 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
 
         # Step 5: Save Note directly to Obsidian Vault Transcripts
         job_manager.update_job(job_id, progress_percent=95.0, speed="Writing Obsidian Vault Note...")
+        clean_sub = re.sub(r"\.\.+[/\\]?", "", req.vault_subfolder or "Transcripts").strip("/\\") or "Transcripts"
         vault_note = ObsidianService.create_transcript_note(
             media_info=media_info,
             transcription=trans_res,
-            summary=summary
+            summary=summary,
+            vault_subfolder=clean_sub,
+            custom_tags=req.tags
         )
 
         # Step 6: Trigger Semantic Vector Re-Index (Non-blocking)
@@ -85,7 +89,7 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
         except Exception:
             pass
 
-        encoded_note = urllib.parse.quote(f"Transcripts/{vault_note.name}")
+        encoded_note = urllib.parse.quote(f"{clean_sub}/{vault_note.name}")
         out_files = {
             "media": str(current_media),
             "audio": str(audio_path),
@@ -98,7 +102,7 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
             job_id,
             status=JobStatus.COMPLETED,
             progress_percent=100.0,
-            obsidian_link=f"[[Transcripts/{vault_note.stem}]]",
+            obsidian_link=f"[[{clean_sub}/{vault_note.stem}]]",
             obsidian_uri=f"obsidian://open?vault=Vault&file={encoded_note}",
             output_files=out_files
         )

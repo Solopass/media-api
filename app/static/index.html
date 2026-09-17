@@ -610,6 +610,180 @@
       overflow-x: auto;
     }
 
+    /* Playback Speed Controls */
+    .speed-cluster {
+      display: inline-flex;
+      gap: 0.2rem;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 0.1rem;
+    }
+    .speed-btn {
+      background: transparent !important;
+      border: none !important;
+      color: var(--text-dim) !important;
+      padding: 0.15rem 0.4rem !important;
+      font-size: 0.7rem !important;
+      border-radius: 3px !important;
+      cursor: pointer;
+      font-weight: 500;
+      transition: var(--transition);
+    }
+    .speed-btn:hover {
+      color: var(--text-main) !important;
+    }
+    .speed-btn.active {
+      background: var(--primary) !important;
+      color: #000 !important;
+      font-weight: 700 !important;
+    }
+
+    /* Segment Replay Button */
+    .replay-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      font-size: 0.75rem;
+      cursor: pointer;
+      padding: 0 0.2rem;
+      transition: var(--transition);
+      display: inline-flex;
+      align-items: center;
+    }
+    .replay-btn:hover {
+      color: var(--primary);
+      transform: scale(1.15);
+    }
+
+    /* Transcript Keyword Search Bar */
+    .transcript-search-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 0.35rem 0.6rem;
+      margin-bottom: 0.6rem;
+    }
+    .transcript-search-bar:focus-within {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--primary-glow);
+    }
+    .search-input {
+      flex: 1;
+      background: transparent !important;
+      border: none !important;
+      color: var(--text-main) !important;
+      font-size: 0.8rem !important;
+      padding: 0 !important;
+      box-shadow: none !important;
+    }
+    .search-badge {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      white-space: nowrap;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      background: var(--bg-surface);
+    }
+    .search-nav-btn {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      border-radius: 3px;
+      padding: 0.1rem 0.35rem;
+      font-size: 0.65rem;
+      cursor: pointer;
+    }
+    .search-nav-btn:hover {
+      color: var(--text-main);
+      border-color: var(--primary);
+    }
+    .filter-toggle-btn {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      border-radius: 3px;
+      padding: 0.15rem 0.45rem;
+      font-size: 0.7rem;
+      cursor: pointer;
+    }
+    .filter-toggle-btn.active {
+      background: var(--primary);
+      color: #000;
+      border-color: var(--primary);
+      font-weight: 600;
+    }
+    mark.search-match {
+      background: rgba(245, 158, 11, 0.4);
+      color: #fff;
+      padding: 0.05rem 0.2rem;
+      border-radius: 2px;
+    }
+    mark.search-match.current {
+      background: #f59e0b;
+      color: #000;
+      font-weight: 700;
+      box-shadow: 0 0 6px #f59e0b;
+    }
+
+    /* Collapsible Form Section */
+    .collapsible-trigger {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 0.5rem 0;
+      cursor: pointer;
+      border-bottom: 1px dashed var(--border-subtle);
+      margin-top: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .collapsible-trigger:hover {
+      color: var(--text-main);
+    }
+
+    /* Batch Queue Tray */
+    .batch-tray {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--primary);
+      border-radius: var(--radius-md);
+      padding: 1rem;
+      box-shadow: 0 0 20px var(--primary-glow);
+      margin-bottom: 1.5rem;
+      animation: fadeIn 0.2s ease-out;
+    }
+    .batch-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+    .batch-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+    .batch-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+      background: var(--bg-surface);
+      padding: 0.4rem 0.75rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-subtle);
+    }
+
     /* Segment Table & Text Output */
     .transcript-viewer {
       display: flex;
@@ -770,6 +944,25 @@
 
   <!-- Main Navigation Tabs -->
   <main>
+    <!-- Batch Queue Tray (Visible when multiple files are selected/dropped) -->
+    <div id="batch-tray-container" class="batch-tray" style="display: none;">
+      <div class="batch-header">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+          <strong id="batch-title">Multi-File Batch Queue</strong>
+          <span class="badge-sol" id="batch-count-badge">0 / 0</span>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+          <button type="button" class="btn-sm" id="btn-cancel-batch" style="background: rgba(239, 68, 68, 0.2); color: var(--danger); border-color: rgba(239, 68, 68, 0.4);">Cancel Remaining</button>
+          <button type="button" class="btn-sm" id="btn-close-batch" style="display: none;">Close Tray</button>
+        </div>
+      </div>
+      <div class="progress-track" style="margin-bottom: 0.75rem;">
+        <div class="progress-fill" id="batch-total-progress" style="width: 0%;"></div>
+      </div>
+      <div class="batch-list" id="batch-items-list"></div>
+    </div>
+
     <nav class="nav-tabs">
       <button class="tab-btn active" data-tab="tab-ingest">
         <svg class="icon" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
@@ -816,7 +1009,7 @@
                 <div class="upload-btn-target" id="ingest-upload-btn" title="Click to choose file, or drag & drop directly over this button">
                   <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                   <span class="upload-btn-text">Upload</span>
-                  <input type="file" id="ingest-file-input" class="hidden-file-input" accept="audio/*,video/*">
+                  <input type="file" id="ingest-file-input" class="hidden-file-input" accept="audio/*,video/*" multiple>
                 </div>
               </div>
               <div class="upload-progress-container" id="ingest-upload-progress" style="display: none;">
@@ -876,6 +1069,26 @@
               </div>
             </div>
 
+            <!-- Collapsible Vault Organization & Tags -->
+            <button type="button" class="collapsible-trigger" id="btn-toggle-vault-org">
+              <span>📁 Vault Subfolder & Custom Tags</span>
+              <span id="icon-toggle-vault-org">▼</span>
+            </button>
+            <div id="group-vault-org" style="display: none; margin-bottom: 1rem;">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="ingest-subfolder">Vault Subfolder</label>
+                  <input type="text" id="ingest-subfolder" value="Transcripts" placeholder="Transcripts or Transcripts/Meetings">
+                  <span class="hint">Presets: Transcripts, Transcripts/Meetings, Transcripts/Podcasts</span>
+                </div>
+                <div class="form-group">
+                  <label for="ingest-tags">Custom Frontmatter Tags</label>
+                  <input type="text" id="ingest-tags" placeholder="planning, sync, harbour-light">
+                  <span class="hint">Comma-separated tags for Obsidian note</span>
+                </div>
+              </div>
+            </div>
+
             <button type="submit" class="btn-submit" id="btn-submit-ingest">
               <svg class="icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
               Launch Ingest & Create Note
@@ -907,12 +1120,19 @@
             </div>
 
             <div class="result-box" id="ingest-finished-box" style="display: none;">
-              <!-- Embedded Audio Player with Seek -->
+              <!-- Embedded Audio Player with Seek & Speed Controls -->
               <div id="ingest-audio-container" style="display: none; margin-bottom: 0.5rem;">
                 <div class="audio-player-card">
                   <div class="audio-player-header">
                     <span>🎵 Ingested Audio (Click timestamps below to seek)</span>
                     <div class="audio-player-controls">
+                      <div class="speed-cluster">
+                        <button type="button" class="speed-btn" data-speed="0.75" onclick="setPlaybackSpeed('ingest-audio', 0.75)">0.75x</button>
+                        <button type="button" class="speed-btn active" data-speed="1.0" onclick="setPlaybackSpeed('ingest-audio', 1.0)">1x</button>
+                        <button type="button" class="speed-btn" data-speed="1.25" onclick="setPlaybackSpeed('ingest-audio', 1.25)">1.25x</button>
+                        <button type="button" class="speed-btn" data-speed="1.5" onclick="setPlaybackSpeed('ingest-audio', 1.5)">1.5x</button>
+                        <button type="button" class="speed-btn" data-speed="2.0" onclick="setPlaybackSpeed('ingest-audio', 2.0)">2x</button>
+                      </div>
                       <button type="button" onclick="skipAudioPlayer('ingest-audio', -5)">-5s</button>
                       <button type="button" onclick="skipAudioPlayer('ingest-audio', 5)">+5s</button>
                     </div>
@@ -932,7 +1152,7 @@
                   <span id="ingest-vault-link-text">[[Transcripts/...]]</span>
                 </span>
                 <button type="button" class="btn-header-action" id="btn-toggle-note-preview" title="Preview full markdown note">
-                  <svg class="icon" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                   Preview Note
                 </button>
                 <button type="button" class="btn-header-action" id="btn-copy-note-markdown" title="Copy full markdown content">
@@ -955,10 +1175,25 @@
                 <div id="ingest-summary-text" style="white-space: pre-wrap; font-size: 0.8rem; background: var(--bg-surface); padding: 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); max-height: 200px; overflow-y: auto;"></div>
               </div>
 
-              <!-- Timestamped Transcript Segments with Audio Sync -->
+              <!-- Timestamped Transcript Segments with Search & Subtitle Export -->
               <div id="ingest-segments-container" style="display: none;">
-                <span class="hint">Timestamped Transcript (Click timestamp to jump audio)</span>
-                <div class="transcript-viewer" id="ingest-segments-list" style="max-height: 250px; margin-top: 0.35rem;"></div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; flex-wrap: wrap; gap: 0.4rem;">
+                  <span class="hint">Timestamped Transcript (Click timestamp to seek)</span>
+                  <div style="display: flex; gap: 0.3rem;">
+                    <button type="button" class="btn-sm" id="btn-export-srt-ingest" title="Download .SRT subtitle file">📥 .SRT</button>
+                    <button type="button" class="btn-sm" id="btn-export-vtt-ingest" title="Download .VTT WebVTT file">📥 .VTT</button>
+                    <button type="button" class="btn-sm" id="btn-export-json-ingest" title="Download .JSON file">📥 .JSON</button>
+                  </div>
+                </div>
+                <div class="transcript-search-bar" id="ingest-search-bar">
+                  <svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                  <input type="text" class="search-input" id="ingest-search-input" placeholder="Search transcript keywords (Ctrl+F)...">
+                  <span class="search-badge" id="ingest-search-count"></span>
+                  <button type="button" class="search-nav-btn" id="btn-search-prev-ingest" title="Previous match">▲</button>
+                  <button type="button" class="search-nav-btn" id="btn-search-next-ingest" title="Next match">▼</button>
+                  <button type="button" class="filter-toggle-btn" id="btn-filter-toggle-ingest" title="Show only matching segments">Filter</button>
+                </div>
+                <div class="transcript-viewer" id="ingest-segments-list" style="max-height: 250px;"></div>
               </div>
             </div>
           </div>
@@ -988,7 +1223,7 @@
                 <div class="upload-btn-target" id="transcribe-upload-btn" title="Click to choose file, or drag & drop directly over this button">
                   <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                   <span class="upload-btn-text">Upload</span>
-                  <input type="file" id="transcribe-file-input" class="hidden-file-input" accept="audio/*,video/*">
+                  <input type="file" id="transcribe-file-input" class="hidden-file-input" accept="audio/*,video/*" multiple>
                 </div>
               </div>
               <div class="upload-progress-container" id="transcribe-upload-progress" style="display: none;">
@@ -1023,7 +1258,10 @@
         <div class="card">
           <div class="card-header">
             <h3 class="card-title">Transcript & Segments</h3>
-            <div style="display: flex; gap: 0.5rem;" id="transcribe-actions">
+            <div style="display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap;" id="transcribe-actions">
+              <button type="button" class="btn-sm" id="btn-export-srt-stt" style="display: none;" title="Download .SRT subtitle file">📥 .SRT</button>
+              <button type="button" class="btn-sm" id="btn-export-vtt-stt" style="display: none;" title="Download .VTT WebVTT file">📥 .VTT</button>
+              <button type="button" class="btn-sm" id="btn-export-json-stt" style="display: none;" title="Download .JSON file">📥 .JSON</button>
               <button class="btn-header-action" id="btn-copy-transcript" style="display: none;">
                 <svg class="icon" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                 Copy Text
@@ -1045,18 +1283,34 @@
             </div>
           </div>
 
-          <!-- Audio Player with range support -->
+          <!-- Audio Player with range support & speed toggles -->
           <div id="transcribe-audio-container" style="display: none; margin-bottom: 0.75rem;">
             <div class="audio-player-card">
               <div class="audio-player-header">
                 <span>🎵 Audio Playback (Click any timestamp to seek)</span>
                 <div class="audio-player-controls">
+                  <div class="speed-cluster">
+                    <button type="button" class="speed-btn" data-speed="0.75" onclick="setPlaybackSpeed('transcribe-audio', 0.75)">0.75x</button>
+                    <button type="button" class="speed-btn active" data-speed="1.0" onclick="setPlaybackSpeed('transcribe-audio', 1.0)">1x</button>
+                    <button type="button" class="speed-btn" data-speed="1.25" onclick="setPlaybackSpeed('transcribe-audio', 1.25)">1.25x</button>
+                    <button type="button" class="speed-btn" data-speed="1.5" onclick="setPlaybackSpeed('transcribe-audio', 1.5)">1.5x</button>
+                    <button type="button" class="speed-btn" data-speed="2.0" onclick="setPlaybackSpeed('transcribe-audio', 2.0)">2x</button>
+                  </div>
                   <button type="button" onclick="skipAudioPlayer('transcribe-audio', -5)">-5s</button>
                   <button type="button" onclick="skipAudioPlayer('transcribe-audio', 5)">+5s</button>
                 </div>
               </div>
               <audio id="transcribe-audio" controls preload="metadata"></audio>
             </div>
+          </div>
+
+          <div class="transcript-search-bar" id="transcribe-search-bar" style="display: none;">
+            <svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" class="search-input" id="transcribe-search-input" placeholder="Search transcript keywords (Ctrl+F)...">
+            <span class="search-badge" id="transcribe-search-count"></span>
+            <button type="button" class="search-nav-btn" id="btn-search-prev-stt" title="Previous match">▲</button>
+            <button type="button" class="search-nav-btn" id="btn-search-next-stt" title="Next match">▼</button>
+            <button type="button" class="filter-toggle-btn" id="btn-filter-toggle-stt" title="Show only matching segments">Filter</button>
           </div>
 
           <div class="transcript-viewer" id="transcribe-segments-list" style="display: none;"></div>
@@ -1279,7 +1533,10 @@
     const state = {
       health: null,
       jobs: [],
-      activePollers: {}
+      activePollers: {},
+      lastIngestTranscript: null,
+      lastSttTranscript: null,
+      batchCancelled: false
     };
 
     // DOM Elements
@@ -1290,11 +1547,24 @@
     const badgeActiveJobs = document.getElementById("badge-active-jobs");
     const toastEl = document.getElementById("toast");
 
+    // Active audio tracking for keyboard shortcuts
+    let lastInteractedAudio = null;
+
     // Show Toast
     function showToast(msg, duration = 3000) {
       toastEl.textContent = msg;
       toastEl.style.display = "flex";
       setTimeout(() => { toastEl.style.display = "none"; }, duration);
+    }
+
+    // Active tab helper
+    function getActiveTabType() {
+      const activeTab = document.querySelector(".nav-tabs .tab-btn.active");
+      if (!activeTab) return "ingest";
+      const tabId = activeTab.getAttribute("data-tab");
+      if (tabId === "tab-transcribe") return "transcribe";
+      if (tabId === "tab-clip") return "clip";
+      return "ingest";
     }
 
     // Tab Navigation
@@ -1307,6 +1577,18 @@
         if (btn.dataset.tab === "tab-jobs") fetchJobs();
       });
     });
+
+    // Vault Organization Collapsible Toggle
+    const btnToggleVaultOrg = document.getElementById("btn-toggle-vault-org");
+    if (btnToggleVaultOrg) {
+      btnToggleVaultOrg.addEventListener("click", () => {
+        const group = document.getElementById("group-vault-org");
+        const icon = document.getElementById("icon-toggle-vault-org");
+        const isHidden = group.style.display === "none";
+        group.style.display = isHidden ? "block" : "none";
+        if (icon) icon.textContent = isHidden ? "▲" : "▼";
+      });
+    }
 
     // Ingest Engine Switcher
     const ingestEngine = document.getElementById("ingest-engine");
@@ -1459,12 +1741,119 @@
       return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
     }
 
+    function formatSrtTime(seconds) {
+      const s = Math.max(0, Number(seconds) || 0);
+      const hrs = Math.floor(s / 3600);
+      const mins = Math.floor((s % 3600) / 60);
+      const secs = Math.floor(s % 60);
+      const ms = Math.floor((s - Math.floor(s)) * 1000);
+      return `${String(hrs).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")},${String(ms).padStart(3, "0")}`;
+    }
+
+    function formatVttTime(seconds) {
+      const s = Math.max(0, Number(seconds) || 0);
+      const hrs = Math.floor(s / 3600);
+      const mins = Math.floor((s % 3600) / 60);
+      const secs = Math.floor(s % 60);
+      const ms = Math.floor((s - Math.floor(s)) * 1000);
+      return `${String(hrs).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
+    }
+
+    function wrapSubtitleText(text, maxChars = 42) {
+      if (!text) return "";
+      const words = text.trim().split(/\s+/);
+      const lines = [];
+      let currentLine = "";
+
+      for (const word of words) {
+        if (!currentLine) {
+          currentLine = word;
+        } else if ((currentLine + " " + word).length <= maxChars) {
+          currentLine += " " + word;
+        } else {
+          lines.push(currentLine);
+          currentLine = word;
+          if (lines.length === 2) break;
+        }
+      }
+      if (currentLine) lines.push(currentLine);
+      return lines.join("\n");
+    }
+
+    function generateSRT(segments) {
+      if (!segments || segments.length === 0) return "";
+      return segments.map((seg, idx) => {
+        const start = formatSrtTime(seg.start || 0);
+        const end = formatSrtTime(seg.end || ((seg.start || 0) + 2));
+        const wrapped = wrapSubtitleText(seg.text || "");
+        return `${idx + 1}\n${start} --> ${end}\n${wrapped}\n`;
+      }).join("\n");
+    }
+
+    function generateVTT(segments) {
+      if (!segments || segments.length === 0) return "WEBVTT\n";
+      const body = segments.map((seg, idx) => {
+        const start = formatVttTime(seg.start || 0);
+        const end = formatVttTime(seg.end || ((seg.start || 0) + 2));
+        const wrapped = wrapSubtitleText(seg.text || "");
+        return `${idx + 1}\n${start} --> ${end}\n${wrapped}\n`;
+      }).join("\n");
+      return `WEBVTT\n\n${body}`;
+    }
+
+    function downloadBlob(content, filename, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast(`Downloaded ${filename}`);
+    }
+
     function skipAudioPlayer(playerId, delta) {
       const player = document.getElementById(playerId);
       if (player) {
+        lastInteractedAudio = player;
         player.currentTime = Math.max(0, player.currentTime + delta);
         player.play();
       }
+    }
+
+    function setPlaybackSpeed(playerId, speed) {
+      const player = document.getElementById(playerId);
+      if (!player) return;
+      lastInteractedAudio = player;
+      player.playbackRate = speed;
+      const card = player.closest(".audio-player-card");
+      if (card) {
+        card.querySelectorAll(".speed-btn").forEach(btn => {
+          const btnSpeed = parseFloat(btn.getAttribute("data-speed"));
+          btn.classList.toggle("active", Math.abs(btnSpeed - speed) < 0.05);
+        });
+      }
+    }
+
+    let currentSegmentStopHandler = null;
+    function playSegment(audioEl, start, end) {
+      if (currentSegmentStopHandler) {
+        audioEl.removeEventListener("timeupdate", currentSegmentStopHandler);
+        currentSegmentStopHandler = null;
+      }
+      lastInteractedAudio = audioEl;
+      audioEl.currentTime = start;
+      audioEl.play();
+      currentSegmentStopHandler = () => {
+        if (audioEl.currentTime >= end) {
+          audioEl.pause();
+          audioEl.removeEventListener("timeupdate", currentSegmentStopHandler);
+          currentSegmentStopHandler = null;
+        }
+      };
+      audioEl.addEventListener("timeupdate", currentSegmentStopHandler);
     }
 
     function renderInteractiveSegments(containerEl, audioEl, segments) {
@@ -1486,8 +1875,19 @@
         pill.title = `Seek audio to ${formatTime(seg.start || 0)}`;
         pill.onclick = (e) => {
           e.stopPropagation();
+          lastInteractedAudio = audioEl;
           audioEl.currentTime = seg.start || 0;
           audioEl.play();
+        };
+
+        const replayBtn = document.createElement("button");
+        replayBtn.type = "button";
+        replayBtn.className = "replay-btn";
+        replayBtn.title = `Loop/replay segment (${formatTime(seg.start || 0)} - ${formatTime(seg.end || (seg.start || 0) + 2.5)})`;
+        replayBtn.textContent = "↺";
+        replayBtn.onclick = (e) => {
+          e.stopPropagation();
+          playSegment(audioEl, seg.start || 0, seg.end || ((seg.start || 0) + 2.5));
         };
 
         const text = document.createElement("div");
@@ -1495,6 +1895,7 @@
         text.textContent = seg.text || "";
 
         row.appendChild(pill);
+        row.appendChild(replayBtn);
         row.appendChild(text);
         containerEl.appendChild(row);
       });
@@ -1518,6 +1919,234 @@
           }
         });
       };
+    }
+
+    // Keyword Search & Highlight Controller
+    function setupTranscriptSearch(searchInputId, countBadgeId, containerId, audioEl, prevBtnId, nextBtnId, filterToggleId) {
+      const input = document.getElementById(searchInputId);
+      const badge = document.getElementById(countBadgeId);
+      const container = document.getElementById(containerId);
+      const prevBtn = document.getElementById(prevBtnId);
+      const nextBtn = document.getElementById(nextBtnId);
+      const filterBtn = document.getElementById(filterToggleId);
+
+      if (!input || !container) return;
+
+      let currentMatches = [];
+      let currentIndex = -1;
+      let filterOnly = false;
+
+      function jumpToMatch(index) {
+        if (currentMatches.length === 0) return;
+        if (index < 0) index = currentMatches.length - 1;
+        if (index >= currentMatches.length) index = 0;
+        currentIndex = index;
+
+        container.querySelectorAll("mark.search-match.current").forEach(m => m.classList.remove("current"));
+        const activeRow = currentMatches[currentIndex];
+        const mark = activeRow.querySelector("mark.search-match");
+        if (mark) mark.classList.add("current");
+        activeRow.scrollIntoView({ behavior: "smooth", block: "center" });
+        if (badge) badge.textContent = `${currentIndex + 1} of ${currentMatches.length}`;
+      }
+
+      function updateSearch() {
+        const term = input.value.trim().toLowerCase();
+        const rows = container.querySelectorAll(".segment-row");
+        currentMatches = [];
+        currentIndex = -1;
+
+        rows.forEach(row => {
+          const textEl = row.querySelector(".segment-text");
+          if (!textEl) return;
+          const originalText = textEl.getAttribute("data-orig-text") || textEl.textContent;
+          textEl.setAttribute("data-orig-text", originalText);
+
+          if (!term) {
+            textEl.innerHTML = originalText;
+            row.style.display = "";
+            return;
+          }
+
+          const lower = originalText.toLowerCase();
+          if (lower.includes(term)) {
+            currentMatches.push(row);
+            row.style.display = "";
+            const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const regex = new RegExp(`(${escaped})`, "gi");
+            textEl.innerHTML = originalText.replace(regex, '<mark class="search-match">$1</mark>');
+          } else {
+            if (filterOnly) {
+              row.style.display = "none";
+            } else {
+              row.style.display = "";
+            }
+            textEl.innerHTML = originalText;
+          }
+        });
+
+        if (badge) {
+          badge.textContent = term ? `${currentMatches.length} found` : "";
+        }
+
+        if (currentMatches.length > 0) {
+          jumpToMatch(0);
+        }
+      }
+
+      input.oninput = updateSearch;
+      if (prevBtn) prevBtn.onclick = () => jumpToMatch(currentIndex - 1);
+      if (nextBtn) nextBtn.onclick = () => jumpToMatch(currentIndex + 1);
+      if (filterBtn) {
+        filterBtn.onclick = () => {
+          filterOnly = !filterOnly;
+          filterBtn.classList.toggle("active", filterOnly);
+          filterBtn.textContent = filterOnly ? "Show All" : "Filter";
+          updateSearch();
+        };
+      }
+    }
+
+    // Multi-File Batch Queue Handler
+    async function handleBatchFiles(files, targetTab = "ingest") {
+      const tray = document.getElementById("batch-tray-container");
+      const badge = document.getElementById("batch-count-badge");
+      const progressBar = document.getElementById("batch-total-progress");
+      const itemsList = document.getElementById("batch-items-list");
+      const cancelBtn = document.getElementById("btn-cancel-batch");
+      const closeBtn = document.getElementById("btn-close-batch");
+
+      tray.style.display = "block";
+      closeBtn.style.display = "none";
+      cancelBtn.style.display = "inline-flex";
+      cancelBtn.textContent = "Cancel Remaining";
+      state.batchCancelled = false;
+
+      const total = files.length;
+      itemsList.innerHTML = files.map((f, i) => `
+        <div class="batch-item" id="batch-item-${i}">
+          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%;" title="${f.name}">
+            📄 ${f.name}
+          </span>
+          <span class="pill queued" id="batch-status-${i}">Queued</span>
+        </div>
+      `).join("");
+
+      badge.textContent = `0 / ${total}`;
+      progressBar.style.width = "0%";
+
+      cancelBtn.onclick = () => {
+        state.batchCancelled = true;
+        cancelBtn.textContent = "Cancelling...";
+        showToast("Batch processing cancelled for remaining files.");
+      };
+
+      closeBtn.onclick = () => {
+        tray.style.display = "none";
+      };
+
+      let completedCount = 0;
+
+      for (let i = 0; i < files.length; i++) {
+        if (state.batchCancelled) {
+          for (let j = i; j < files.length; j++) {
+            const s = document.getElementById(`batch-status-${j}`);
+            if (s && s.textContent === "Queued") {
+              s.className = "pill failed";
+              s.textContent = "Cancelled";
+            }
+          }
+          break;
+        }
+
+        const file = files[i];
+        const statusEl = document.getElementById(`batch-status-${i}`);
+        if (statusEl) {
+          statusEl.className = "pill in_progress";
+          statusEl.textContent = "Uploading...";
+        }
+
+        try {
+          // 1. Upload file sequentially
+          const uploadedPath = await new Promise((resolve, reject) => {
+            const formData = new FormData();
+            formData.append("file", file);
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", "/api/v1/upload", true);
+            xhr.onload = () => {
+              if (xhr.status === 200) {
+                try {
+                  const res = JSON.parse(xhr.responseText);
+                  resolve(res.windows_path || res.file_path);
+                } catch (err) { reject(err); }
+              } else {
+                reject(new Error(`Upload failed HTTP ${xhr.status}`));
+              }
+            };
+            xhr.onerror = () => reject(new Error("Upload network error"));
+            xhr.send(formData);
+          });
+
+          if (statusEl) {
+            statusEl.className = "pill in_progress";
+            statusEl.textContent = "Processing...";
+          }
+
+          // 2. Dispatch to API pipeline
+          if (targetTab === "ingest") {
+            const subfolderVal = document.getElementById("ingest-subfolder") ? document.getElementById("ingest-subfolder").value.trim() || "Transcripts" : "Transcripts";
+            const tagsVal = document.getElementById("ingest-tags") ? document.getElementById("ingest-tags").value.split(",").map(t => t.trim()).filter(Boolean) : [];
+            const body = {
+              source: uploadedPath,
+              engine: document.getElementById("ingest-engine").value,
+              model_size: document.getElementById("ingest-whisper-size").value,
+              summarize: document.getElementById("ingest-summarize").checked,
+              llm_model: document.getElementById("ingest-llm-model").value,
+              vault_subfolder: subfolderVal,
+              tags: tagsVal
+            };
+            const res = await fetch("/api/v1/ingest", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body)
+            });
+            if (!res.ok) throw new Error("Ingest request rejected");
+          } else {
+            const body = {
+              source: uploadedPath,
+              engine: document.getElementById("transcribe-engine").value,
+              language: document.getElementById("transcribe-language").value.trim() || null
+            };
+            const res = await fetch("/api/v1/transcribe", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body)
+            });
+            if (!res.ok) throw new Error("Transcribe request rejected");
+          }
+
+          if (statusEl) {
+            statusEl.className = "pill completed";
+            statusEl.textContent = "Queued Job";
+          }
+        } catch (err) {
+          console.error(`Batch error for ${file.name}`, err);
+          if (statusEl) {
+            statusEl.className = "pill failed";
+            statusEl.textContent = "Error";
+          }
+        }
+
+        completedCount++;
+        badge.textContent = `${completedCount} / ${total}`;
+        progressBar.style.width = `${Math.round((completedCount / total) * 100)}%`;
+        fetchJobs();
+        fetchHealth();
+      }
+
+      cancelBtn.style.display = "none";
+      closeBtn.style.display = "inline-flex";
+      showToast(`Batch queued: ${completedCount} files processed`);
     }
 
     // Targeted Drag & Drop and Upload Helper (Strictly button-scoped)
@@ -1560,13 +2189,21 @@
         const lbl = btn.querySelector(".upload-btn-text");
         if (lbl) lbl.textContent = "Upload";
         if (e.dataTransfer && e.dataTransfer.files.length > 0) {
-          uploadFile(e.dataTransfer.files[0], textInput, progContainer, progFill, progText);
+          if (e.dataTransfer.files.length > 1) {
+            handleBatchFiles(Array.from(e.dataTransfer.files), getActiveTabType());
+          } else {
+            uploadFile(e.dataTransfer.files[0], textInput, progContainer, progFill, progText);
+          }
         }
       });
 
       fileInput.addEventListener("change", () => {
         if (fileInput.files && fileInput.files.length > 0) {
-          uploadFile(fileInput.files[0], textInput, progContainer, progFill, progText);
+          if (fileInput.files.length > 1) {
+            handleBatchFiles(Array.from(fileInput.files), getActiveTabType());
+          } else {
+            uploadFile(fileInput.files[0], textInput, progContainer, progFill, progText);
+          }
         }
       });
     }
@@ -1694,6 +2331,9 @@
       const summaryContainer = document.getElementById("ingest-summary-container");
       const summaryText = document.getElementById("ingest-summary-text");
 
+      const subfolderVal = document.getElementById("ingest-subfolder") ? document.getElementById("ingest-subfolder").value.trim() || "Transcripts" : "Transcripts";
+      const tagsVal = document.getElementById("ingest-tags") ? document.getElementById("ingest-tags").value.split(",").map(t => t.trim()).filter(Boolean) : [];
+
       const body = {
         source: document.getElementById("ingest-source").value.trim(),
         clip_start: document.getElementById("ingest-clip-start").value.trim() || null,
@@ -1701,7 +2341,9 @@
         engine: document.getElementById("ingest-engine").value,
         model_size: document.getElementById("ingest-whisper-size").value,
         summarize: document.getElementById("ingest-summarize").checked,
-        llm_model: document.getElementById("ingest-llm-model").value
+        llm_model: document.getElementById("ingest-llm-model").value,
+        vault_subfolder: subfolderVal,
+        tags: tagsVal
       };
 
       btn.disabled = true;
@@ -1775,10 +2417,25 @@
                   const trRes = await fetch(`/api/v1/media/stream?path=${encodeURIComponent(job.output_files.transcript_json)}`);
                   if (trRes.ok) {
                     const trData = await trRes.json();
+                    state.lastIngestTranscript = trData;
                     const segContainer = document.getElementById("ingest-segments-container");
                     const segList = document.getElementById("ingest-segments-list");
                     segContainer.style.display = "block";
                     renderInteractiveSegments(segList, audioEl, trData.segments || []);
+                    setupTranscriptSearch("ingest-search-input", "ingest-search-count", "ingest-segments-list", audioEl, "btn-search-prev-ingest", "btn-search-next-ingest", "btn-filter-toggle-ingest");
+
+                    document.getElementById("btn-export-srt-ingest").onclick = () => {
+                      if (!state.lastIngestTranscript || !state.lastIngestTranscript.segments) return showToast("No segments available");
+                      downloadBlob(generateSRT(state.lastIngestTranscript.segments), "transcript.srt", "text/plain");
+                    };
+                    document.getElementById("btn-export-vtt-ingest").onclick = () => {
+                      if (!state.lastIngestTranscript || !state.lastIngestTranscript.segments) return showToast("No segments available");
+                      downloadBlob(generateVTT(state.lastIngestTranscript.segments), "transcript.vtt", "text/vtt");
+                    };
+                    document.getElementById("btn-export-json-ingest").onclick = () => {
+                      if (!state.lastIngestTranscript) return showToast("No transcript data available");
+                      downloadBlob(JSON.stringify(state.lastIngestTranscript, null, 2), "transcript.json", "application/json");
+                    };
                   }
                 } catch (e) {
                   console.warn("Failed to load transcript JSON", e);
@@ -1873,8 +2530,40 @@
                 const trRes = await fetch(`/api/v1/media/stream?path=${encodeURIComponent(job.output_files.transcript_json)}`);
                 if (trRes.ok) {
                   const trData = await trRes.json();
+                  state.lastSttTranscript = trData;
                   const audioEl = document.getElementById("transcribe-audio");
                   renderInteractiveSegments(segmentsList, audioEl, trData.segments || []);
+                  
+                  const srtBtn = document.getElementById("btn-export-srt-stt");
+                  const vttBtn = document.getElementById("btn-export-vtt-stt");
+                  const jsonBtn = document.getElementById("btn-export-json-stt");
+                  const searchBar = document.getElementById("transcribe-search-bar");
+                  if (srtBtn) srtBtn.style.display = "inline-flex";
+                  if (vttBtn) vttBtn.style.display = "inline-flex";
+                  if (jsonBtn) jsonBtn.style.display = "inline-flex";
+                  if (searchBar) searchBar.style.display = "flex";
+
+                  setupTranscriptSearch("transcribe-search-input", "transcribe-search-count", "transcribe-segments-list", audioEl, "btn-search-prev-stt", "btn-search-next-stt", "btn-filter-toggle-stt");
+
+                  if (srtBtn) {
+                    srtBtn.onclick = () => {
+                      if (!state.lastSttTranscript || !state.lastSttTranscript.segments) return showToast("No segments available");
+                      downloadBlob(generateSRT(state.lastSttTranscript.segments), "transcript.srt", "text/plain");
+                    };
+                  }
+                  if (vttBtn) {
+                    vttBtn.onclick = () => {
+                      if (!state.lastSttTranscript || !state.lastSttTranscript.segments) return showToast("No segments available");
+                      downloadBlob(generateVTT(state.lastSttTranscript.segments), "transcript.vtt", "text/vtt");
+                    };
+                  }
+                  if (jsonBtn) {
+                    jsonBtn.onclick = () => {
+                      if (!state.lastSttTranscript) return showToast("No transcript data available");
+                      downloadBlob(JSON.stringify(state.lastSttTranscript, null, 2), "transcript.json", "application/json");
+                    };
+                  }
+
                   copyBtn.onclick = () => {
                     navigator.clipboard.writeText(trData.full_text || "");
                     showToast("Copied transcript text!");
@@ -2047,6 +2736,75 @@
         btn.disabled = false;
         stageText.textContent = err.message;
         showToast("Error: " + err.message);
+      }
+    });
+
+    // Global Keyboard Shortcuts
+    const SPEED_STEPS = [0.75, 1.0, 1.25, 1.5, 2.0];
+    window.addEventListener("keydown", (e) => {
+      // Ctrl+F or Cmd+F: Focus transcript search bar in the active tab
+      if ((e.ctrlKey || e.metaKey) && (e.key === "f" || e.key === "F")) {
+        const activeTab = getActiveTabType();
+        let searchInput = null;
+        if (activeTab === "ingest") {
+          const container = document.getElementById("ingest-segments-container");
+          if (container && container.style.display !== "none") {
+            searchInput = document.getElementById("ingest-search-input");
+          }
+        } else if (activeTab === "transcribe") {
+          const bar = document.getElementById("transcribe-search-bar");
+          if (bar && bar.style.display !== "none") {
+            searchInput = document.getElementById("transcribe-search-input");
+          }
+        }
+        if (searchInput) {
+          e.preventDefault();
+          searchInput.focus();
+          searchInput.select();
+          return;
+        }
+      }
+
+      // If user is typing in an input field, textarea, or select, don't hijack media controls
+      const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : "";
+      if (activeTag === "input" || activeTag === "textarea" || activeTag === "select") {
+        return;
+      }
+
+      // Determine active audio player
+      let player = lastInteractedAudio;
+      if (!player || player.style.display === "none") {
+        const activeTab = getActiveTabType();
+        if (activeTab === "ingest") player = document.getElementById("ingest-audio");
+        else if (activeTab === "transcribe") player = document.getElementById("transcribe-audio");
+      }
+
+      if (!player || !player.src) return;
+
+      if (e.code === "Space") {
+        e.preventDefault();
+        if (player.paused) player.play();
+        else player.pause();
+      } else if (e.key === "j" || e.key === "J") {
+        e.preventDefault();
+        skipAudioPlayer(player.id, -5);
+      } else if (e.key === "l" || e.key === "L") {
+        e.preventDefault();
+        skipAudioPlayer(player.id, 5);
+      } else if (e.key === "[") {
+        e.preventDefault();
+        const curSpeed = player.playbackRate || 1.0;
+        const curIdx = SPEED_STEPS.findIndex(s => Math.abs(s - curSpeed) < 0.05);
+        const prevIdx = curIdx > 0 ? curIdx - 1 : 0;
+        setPlaybackSpeed(player.id, SPEED_STEPS[prevIdx]);
+        showToast(`Speed: ${SPEED_STEPS[prevIdx]}x`);
+      } else if (e.key === "]") {
+        e.preventDefault();
+        const curSpeed = player.playbackRate || 1.0;
+        const curIdx = SPEED_STEPS.findIndex(s => Math.abs(s - curSpeed) < 0.05);
+        const nextIdx = curIdx !== -1 && curIdx < SPEED_STEPS.length - 1 ? curIdx + 1 : (curIdx === -1 ? 1 : SPEED_STEPS.length - 1);
+        setPlaybackSpeed(player.id, SPEED_STEPS[nextIdx]);
+        showToast(`Speed: ${SPEED_STEPS[nextIdx]}x`);
       }
     });
 

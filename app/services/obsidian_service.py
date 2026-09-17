@@ -3,7 +3,7 @@ import json
 import urllib.request
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from app.config import settings
 
@@ -48,7 +48,9 @@ class ObsidianService:
     def create_transcript_note(
         media_info: Dict[str, Any],
         transcription: Dict[str, Any],
-        summary: str
+        summary: str,
+        vault_subfolder: str = "Transcripts",
+        custom_tags: Optional[List[str]] = None
     ) -> Path:
         import re
         stt_label = transcription.get("model") or "unknown"
@@ -63,12 +65,32 @@ class ObsidianService:
         clean_yaml_title = raw_title.replace('"', '\\"').replace("\n", " ")
         clean_source_url = str(media_info.get("url", "")).replace('"', '\\"')
 
+        # Sanitize and resolve target subfolder
+        clean_sub = re.sub(r"\.\.+[/\\]?", "", vault_subfolder or "Transcripts").strip("/\\")
+        if not clean_sub:
+            clean_sub = "Transcripts"
+
+        if clean_sub == "Transcripts" or clean_sub.startswith("Transcripts/"):
+            sub_rel = clean_sub[len("Transcripts"):].strip("/\\")
+            target_vault_dir = settings.vault_transcripts / sub_rel if sub_rel else settings.vault_transcripts
+        else:
+            target_vault_dir = settings.vault_transcripts.parent / clean_sub
+
+        # Merge tags
+        tags = ["media", "transcript", "ai-ingest", "obsidian-second-brain"]
+        if custom_tags:
+            for t in custom_tags:
+                ct = re.sub(r"[^\w\-]", "", str(t).strip().lower().lstrip("#"))
+                if ct and ct not in tags:
+                    tags.append(ct)
+        tags_yaml = ", ".join(tags)
+
         # Format markdown note
         note_lines = [
             "---",
             f"title: \"{clean_yaml_title}\"",
             f"date: {date_str}",
-            "tags: [media, transcript, ai-ingest, obsidian-second-brain]",
+            f"tags: [{tags_yaml}]",
             f"source_url: \"{clean_source_url}\"",
             f"duration: \"{transcription.get('duration', 0)}s\"",
             f"stt_model: \"{stt_label}\"",
@@ -105,7 +127,7 @@ class ObsidianService:
         content = "\n".join(note_lines)
 
         # Write to Vault and Output directories
-        vault_file = settings.vault_transcripts / note_filename
+        vault_file = target_vault_dir / note_filename
         vault_file.parent.mkdir(parents=True, exist_ok=True)
         with open(vault_file, "w", encoding="utf-8") as f:
             f.write(content)
@@ -116,15 +138,16 @@ class ObsidianService:
             f.write(content)
 
         # Update Transcripts_Dashboard.md
-        ObsidianService.update_dashboard(media_info.get("title", safe_title), vault_file)
+        ObsidianService.update_dashboard(media_info.get("title", safe_title), vault_file, subfolder=clean_sub)
         return vault_file
 
     @staticmethod
-    def update_dashboard(title: str, note_path: Path):
+    def update_dashboard(title: str, note_path: Path, subfolder: str = "Transcripts"):
         dash = settings.vault_dashboard
         if not dash.exists():
             return
-        row = f"| {datetime.now().strftime('%Y-%m-%d')} | [[Transcripts/{note_path.stem}|{title[:40]}]] | Workstation Media API | ✅ Ingested |\n"
+        clean_sub = subfolder.strip("/\\") or "Transcripts"
+        row = f"| {datetime.now().strftime('%Y-%m-%d')} | [[{clean_sub}/{note_path.stem}|{title[:40]}]] | Workstation Media API | ✅ Ingested |\n"
         try:
             with open(dash, "a", encoding="utf-8") as f:
                 f.write(row)
