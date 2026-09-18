@@ -3,7 +3,8 @@ Description=Workstation Linux Media API Socket (On-Demand Activation)
 PartOf=media-api.service
 
 [Socket]
-ListenStream=8080
+# Loopback only: a bare port would listen on every interface.
+ListenStream=127.0.0.1:8080
 
 [Install]
 WantedBy=sockets.target
