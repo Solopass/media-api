@@ -17,6 +17,7 @@ class Settings(BaseModel):
     output_transcripts: Path = Path("/mnt/d/Output/Transcripts")
     
     # Obsidian Second Brain Paths
+    vault_name: str = os.getenv("MEDIA_API_VAULT_NAME", "OBVLT")
     vault_transcripts: Path = Path("/mnt/d/AI/Vault/Transcripts")
     vault_dashboard: Path = Path("/mnt/d/AI/Vault/Transcripts_Dashboard.md")
     vault_schedule: Path = Path("/mnt/d/AI/Vault/VM_Schedule.md")
@@ -41,7 +42,7 @@ class Settings(BaseModel):
     parakeet_threads: int = int(os.getenv("MEDIA_API_PARAKEET_THREADS", "8"))
 
     # On-Demand Lifecycle & Auto-Close (Workstation Standard)
-    idle_timeout_seconds: int = int(os.getenv("MEDIA_API_IDLE_TIMEOUT", "60"))
+    idle_timeout_seconds: int = int(os.getenv("MEDIA_API_IDLE_TIMEOUT", "300"))
     auto_close: bool = True
 
     def setup_directories(self):

@@ -53,7 +53,7 @@ class IngestRequest(BaseModel):
     priority: str = Field(default="normal", description="Queue priority")
 
 class ConfigIdleRequest(BaseModel):
-    timeout_seconds: int = Field(default=60, description="Idle timeout in seconds (0 or negative = disabled)")
+    timeout_seconds: int = Field(default=300, description="Idle timeout in seconds (0 or negative = disabled)")
     auto_close: bool = Field(default=True, description="Enable automatic shutdown when idle")
 
 class MediaProbeResponse(BaseModel):

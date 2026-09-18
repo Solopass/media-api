@@ -112,6 +112,7 @@ def test_run_transcribe_task_generates_transcript_json(tmp_path):
 def test_run_ingest_pipeline_generates_sidecar_and_obsidian_uri(tmp_path):
     import json
     from pathlib import Path
+    from app.config import settings
     from app.routers.ingest import run_ingest_pipeline
     from app.models.schemas import IngestRequest
     from app.queue.manager import job_manager
@@ -143,7 +144,7 @@ def test_run_ingest_pipeline_generates_sidecar_and_obsidian_uri(tmp_path):
     assert job.status == "completed"
     assert "transcript_json" in job.output_files
     assert job.obsidian_uri is not None
-    assert "obsidian://open?vault=Vault" in job.obsidian_uri
+    assert f"obsidian://open?vault={settings.vault_name}" in job.obsidian_uri
 
 
 def test_run_ingest_pipeline_with_custom_subfolder_and_tags(tmp_path):
@@ -290,6 +291,75 @@ def test_ingest_cancellation_short_circuits(tmp_path):
 
     job = job_manager.get_job(job_id)
     assert job.status == JobStatus.CANCELLED
+
+
+def test_obsidian_service_error_report_note(tmp_path):
+    from app.services.obsidian_service import ObsidianService
+    from app.config import settings
+
+    vault_dir = tmp_path / "Vault" / "Transcripts"
+    output_dir = tmp_path / "Output" / "Transcripts"
+    dash_file = tmp_path / "Vault" / "Transcripts_Dashboard.md"
+    dash_file.parent.mkdir(parents=True, exist_ok=True)
+    dash_file.write_text("# Dashboard\n\n| Date | Note | Engine | Status |\n|---|---|---|---|\n", encoding="utf-8")
+
+    with mock.patch.object(settings, "vault_transcripts", vault_dir), \
+         mock.patch.object(settings, "output_transcripts", output_dir), \
+         mock.patch.object(settings, "vault_dashboard", dash_file):
+
+        err_note = ObsidianService.create_error_report_note(
+            media_info={"title": "Test Glitched Video", "url": "https://youtube.com/watch?v=123"},
+            failed_stage="Audio Extraction",
+            error_message="FFmpeg broken pipe",
+            traceback_str="Traceback (most recent call last):\n  File 'test.py', line 1\nZeroDivisionError",
+            partial_files={"video": "/mnt/d/Output/Videos/test.mp4"}
+        )
+
+        assert err_note.exists()
+        content = err_note.read_text(encoding="utf-8")
+        assert "FAILED: Test Glitched Video" in content
+        assert "error-report" in content
+        assert "failed-ingest" in content
+        assert "Audio Extraction" in content
+        assert "FFmpeg broken pipe" in content
+        assert "/mnt/d/Output/Videos/test.mp4" in content
+
+        # Verify dashboard entry
+        dash_content = dash_file.read_text(encoding="utf-8")
+        assert "❌ Failed (Audio Extraction)" in dash_content
+
+
+def test_stt_parakeet_runtime_failure_falls_back_to_whisper(tmp_path):
+    from app.services import stt_service
+    fake_audio = tmp_path / "speech.wav"
+    fake_audio.write_bytes(b"RIFFdummydata")
+
+    whisper_fallback_res = {
+        "text": "Fallback speech transcription",
+        "segments": [],
+        "language": "en",
+        "duration": 3.0
+    }
+
+    with mock.patch("app.services.stt_service.ParakeetService.transcribe", side_effect=RuntimeError("Parakeet BLAS fault")), \
+         mock.patch("app.services.stt_service.WhisperService.transcribe", return_value=whisper_fallback_res) as mock_whisper:
+
+        res = stt_service.transcribe(fake_audio, engine="parakeet", language="en")
+        assert mock_whisper.called
+        assert res["engine"] == "whisper (fallback)"
+        assert "fallback" in res["model"]
+        assert res["text"] == "Fallback speech transcription"
+
+
+def test_pipeline_active_tracking():
+    from app.queue.manager import job_manager
+
+    initial = job_manager.is_pipeline_active()
+    job_manager.pipeline_started()
+    assert job_manager.is_pipeline_active() is True
+    job_manager.pipeline_ended()
+    assert job_manager.is_pipeline_active() == initial
+
 
 
 

@@ -1,12 +1,18 @@
+import json
+import logging
 import uuid
 import time
 import threading
 import asyncio
+from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Optional
 from concurrent.futures import ThreadPoolExecutor
 
+from app.config import settings
 from app.models.schemas import JobStatus, JobDetail
+
+logger = logging.getLogger("media_api")
 
 class JobQueueManager:
     _instance = None
@@ -17,6 +23,9 @@ class JobQueueManager:
         self.executor = ThreadPoolExecutor(max_workers=4)
         self._lock = threading.Lock()
         self._last_activity: float = time.time()
+        self._active_pipelines: int = 0
+        self._storage_file: Path = settings.cache_dir / "media_jobs.json"
+        self._load_jobs()
 
     @classmethod
     def get_instance(cls):
@@ -24,6 +33,56 @@ class JobQueueManager:
             if cls._instance is None:
                 cls._instance = JobQueueManager()
             return cls._instance
+
+    def _load_jobs(self):
+        """Restore jobs from disk cache across systemd socket activations."""
+        try:
+            if self._storage_file.exists():
+                with open(self._storage_file, "r", encoding="utf-8") as f:
+                    raw_data = json.load(f)
+                for item in raw_data:
+                    try:
+                        job = JobDetail(**item)
+                        # If server died while a job was running, mark it interrupted
+                        if job.status in (JobStatus.QUEUED, JobStatus.RUNNING):
+                            job.status = JobStatus.FAILED
+                            job.error = "Interrupted by prior server shutdown/restart"
+                            job.updated_at = datetime.now().isoformat()
+                        self.jobs[job.job_id] = job
+                    except Exception:
+                        continue
+                logger.info(f"[queue] Restored {len(self.jobs)} job(s) from {self._storage_file}")
+        except Exception as e:
+            logger.warning(f"[queue] Failed to load jobs from {self._storage_file}: {e}")
+
+    def _save_jobs(self):
+        """Persist jobs atomically to disk."""
+        try:
+            settings.cache_dir.mkdir(parents=True, exist_ok=True)
+            tmp_file = self._storage_file.with_suffix(".tmp")
+            data = [j.model_dump() for j in self.jobs.values()]
+            with open(tmp_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=1)
+            tmp_file.replace(self._storage_file)
+        except Exception as e:
+            logger.warning(f"[queue] Failed to persist jobs to {self._storage_file}: {e}")
+
+    def pipeline_started(self):
+        with self._lock:
+            self._active_pipelines += 1
+            self._last_activity = time.time()
+
+    def pipeline_ended(self):
+        with self._lock:
+            self._active_pipelines = max(0, self._active_pipelines - 1)
+            self._last_activity = time.time()
+
+    def is_pipeline_active(self) -> bool:
+        """Strict check if any pipeline worker is actively running."""
+        with self._lock:
+            if self._active_pipelines > 0:
+                return True
+            return any(j.status in (JobStatus.QUEUED, JobStatus.RUNNING) for j in self.jobs.values())
 
     def mark_activity(self):
         """Update last activity timestamp whenever a request or job step occurs."""
@@ -56,6 +115,7 @@ class JobQueueManager:
         with self._lock:
             self.jobs[job_id] = job
             self._last_activity = time.time()
+            self._save_jobs()
         return job_id
 
     def update_job(self, job_id: str, **kwargs):
@@ -69,6 +129,7 @@ class JobQueueManager:
                         setattr(job, k, v)
                 job.updated_at = datetime.now().isoformat()
                 self._prune_old_jobs()
+                self._save_jobs()
             self._last_activity = time.time()
 
     def _prune_old_jobs(self, max_history: int = 100):
@@ -89,6 +150,7 @@ class JobQueueManager:
                     job.error = "Job cancelled by user"
                     job.updated_at = datetime.now().isoformat()
                     self._last_activity = time.time()
+                    self._save_jobs()
                     return True
         return False
 
@@ -106,6 +168,7 @@ class JobQueueManager:
             for k in to_remove:
                 self.jobs.pop(k, None)
             self._last_activity = time.time()
+            self._save_jobs()
             return len(to_remove)
 
     def get_job(self, job_id: str) -> Optional[JobDetail]:

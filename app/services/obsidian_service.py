@@ -196,12 +196,114 @@ class ObsidianService:
     @staticmethod
     def update_dashboard(title: str, note_path: Path, subfolder: str = "Transcripts"):
         dash = settings.vault_dashboard
-        if not dash.exists():
-            return
         clean_sub = subfolder.strip("/\\") or "Transcripts"
         row = f"| {datetime.now().strftime('%Y-%m-%d')} | [[{clean_sub}/{note_path.stem}|{title[:40]}]] | Workstation Media API | ✅ Ingested |\n"
         try:
+            if not dash.exists():
+                dash.parent.mkdir(parents=True, exist_ok=True)
+                with open(dash, "w", encoding="utf-8") as f:
+                    f.write("# 🎙️ Transcripts & Media Dashboard\n\n| Date | Note | Engine | Status |\n| :--- | :--- | :--- | :--- |\n")
             with open(dash, "a", encoding="utf-8") as f:
                 f.write(row)
         except Exception:
             pass
+
+    @staticmethod
+    def create_error_report_note(
+        media_info: Dict[str, Any],
+        failed_stage: str,
+        error_message: str,
+        traceback_str: Optional[str] = None,
+        partial_files: Optional[Dict[str, str]] = None,
+        vault_subfolder: str = "Transcripts"
+    ) -> Path:
+        import re
+        date_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        date_id = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+        raw_title = media_info.get("title") or Path(media_info.get("file_path", "unknown")).stem
+        safe_title = media_info.get("safe_title") or re.sub(r'[\\/*?:"<>|]', "", raw_title)
+        safe_title = re.sub(r"\s+", "_", safe_title)[:80].strip("._") or "media_job"
+        note_filename = f"{date_id}_FAILED_{safe_title}.md"
+
+        clean_yaml_title = raw_title.replace('"', '\\"').replace("\n", " ")
+        clean_source_url = str(media_info.get("url", "")).replace('"', '\\"')
+
+        clean_sub = re.sub(r"\.\.+[/\\]?", "", vault_subfolder or "Transcripts").strip("/\\")
+        if not clean_sub:
+            clean_sub = "Transcripts"
+
+        if clean_sub == "Transcripts" or clean_sub.startswith("Transcripts/"):
+            sub_rel = clean_sub[len("Transcripts"):].strip("/\\")
+            target_vault_dir = settings.vault_transcripts / sub_rel if sub_rel else settings.vault_transcripts
+        else:
+            target_vault_dir = settings.vault_transcripts.parent / clean_sub
+
+        note_lines = [
+            "---",
+            f"title: \"FAILED: {clean_yaml_title}\"",
+            f"date: {date_str}",
+            f"tags: [media, error-report, failed-ingest, obsidian-second-brain]",
+            f"source_url: \"{clean_source_url}\"",
+            f"failed_stage: \"{failed_stage}\"",
+            "status: \"failed\"",
+            "---",
+            "",
+            f"# ⚠️ Pipeline Error: {clean_yaml_title}",
+            "",
+            f"> [!danger] **Glitched Ingest - Terminated at Stage: {failed_stage}**",
+            f"> **Error Message**: `{error_message}`",
+            "",
+            "---",
+            "",
+            "## 📋 Job Diagnostics",
+            f"- **Source Media**: `{media_info.get('file_path') or media_info.get('url') or 'Unknown'}`",
+            f"- **Failed Stage**: {failed_stage}",
+            f"- **Timestamp**: {date_str}",
+            f"- **Processed By**: Workstation Media API (Diagnostic Auto-Capture)",
+            ""
+        ]
+
+        if partial_files:
+            note_lines.extend([
+                "### 💾 Partial Files Preserved",
+                ""
+            ])
+            for k, v in partial_files.items():
+                note_lines.append(f"- **{k.capitalize()}**: `{v}`")
+            note_lines.append("")
+
+        if traceback_str:
+            note_lines.extend([
+                "---",
+                "",
+                "## 🔍 Stack Trace Details",
+                "",
+                "```text",
+                traceback_str.strip(),
+                "```",
+                ""
+            ])
+
+        content = "\n".join(note_lines)
+
+        vault_file = target_vault_dir / note_filename
+        vault_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(vault_file, "w", encoding="utf-8") as f:
+            f.write(content)
+
+        output_file = settings.output_transcripts / note_filename
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(content)
+
+        # Record error in dashboard
+        dash = settings.vault_dashboard
+        if dash.exists():
+            row = f"| {datetime.now().strftime('%Y-%m-%d')} | [[{clean_sub}/{vault_file.stem}|FAILED: {raw_title[:32]}]] | Workstation Media API | ❌ Failed ({failed_stage}) |\n"
+            try:
+                with open(dash, "a", encoding="utf-8") as f:
+                    f.write(row)
+            except Exception:
+                pass
+
+        return vault_file

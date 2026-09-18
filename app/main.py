@@ -19,6 +19,10 @@ from app.queue.manager import job_manager
 from app.models.schemas import ShutdownRequest, ShutdownResponse, ConfigIdleRequest
 from app.routers import media, transcribe, ingest, jobs, upload
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
 logger = logging.getLogger("media_api")
 
 async def idle_watchdog():
@@ -32,9 +36,16 @@ async def idle_watchdog():
             await asyncio.sleep(5)
             if not settings.auto_close or settings.idle_timeout_seconds <= 0:
                 continue
+
             active_jobs = job_manager.get_active_job_count()
+            is_active = job_manager.is_pipeline_active()
+
+            # Strictly NEVER shut down if a job is queued or running or pipeline is active
+            if active_jobs > 0 or is_active:
+                continue
+
             idle_duration = time.time() - job_manager.get_last_activity_time()
-            if active_jobs == 0 and idle_duration >= settings.idle_timeout_seconds:
+            if idle_duration >= settings.idle_timeout_seconds:
                 logger.info(
                     f"[*] Idle timeout reached ({int(idle_duration)}s with 0 active jobs). "
                     "Performing graceful auto-shutdown to release system resources..."

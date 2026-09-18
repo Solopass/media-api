@@ -1,9 +1,12 @@
+import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
 
 from app.config import settings
 from app.services.parakeet_service import ParakeetService
 from app.services.whisper_service import WhisperService
+
+logger = logging.getLogger("media_api")
 
 ENGINES = ("parakeet", "whisper")
 
@@ -26,7 +29,15 @@ def transcribe(
 ) -> Dict[str, Any]:
     chosen = resolve_engine(engine, language)
     if chosen == "parakeet":
-        return ParakeetService.transcribe(audio_path, language=language)
+        try:
+            return ParakeetService.transcribe(audio_path, language=language)
+        except Exception as e:
+            logger.warning(
+                f"[stt] Parakeet transcription failed ({e}). Automatically falling back to faster-whisper (base)..."
+            )
+            result = WhisperService.transcribe(audio_path, model_size="base", language=language)
+            result.update({"engine": "whisper (fallback)", "model": "faster-whisper base (fallback)"})
+            return result
     result = WhisperService.transcribe(audio_path, model_size=model_size, language=language)
     result.update({"engine": "whisper", "model": f"faster-whisper {model_size}"})
     return result

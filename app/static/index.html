@@ -1955,9 +1955,104 @@
         const jobs = await res.json();
         state.jobs = jobs;
         renderJobsTable(jobs);
+
+        // Auto-resume active ingest job on page load/refresh
+        const activeIngest = jobs.find(j => j.type === "ingest" && (j.status === "queued" || j.status === "running"));
+        if (activeIngest && !state.activePollers[activeIngest.job_id]) {
+          resumeIngestJob(activeIngest.job_id);
+        }
       } catch (e) {
         console.error("Fetch jobs error", e);
       }
+    }
+
+    function resumeIngestJob(jobId) {
+      const btn = document.getElementById("btn-submit-ingest");
+      const emptyBox = document.getElementById("ingest-empty");
+      const liveBox = document.getElementById("ingest-live-progress");
+      const finishedBox = document.getElementById("ingest-finished");
+      const stageBadge = document.getElementById("ingest-stage-badge");
+      const stageText = document.getElementById("ingest-stage-text");
+      const percentText = document.getElementById("ingest-percent");
+      const progressBar = document.getElementById("ingest-progress-bar");
+      const vaultLink = document.getElementById("ingest-vault-link");
+      const vaultLinkText = document.getElementById("ingest-vault-link-text");
+
+      if (btn) btn.disabled = true;
+      if (emptyBox) emptyBox.style.display = "none";
+      if (liveBox) liveBox.style.display = "block";
+      if (finishedBox) finishedBox.style.display = "none";
+      if (stageBadge) {
+        stageBadge.style.display = "inline-flex";
+        stageBadge.className = "pill queued";
+        stageBadge.textContent = "Active";
+      }
+
+      pollJob(
+        jobId,
+        (job) => {
+          if (stageBadge) {
+            stageBadge.className = `pill ${job.status}`;
+            stageBadge.textContent = job.status;
+          }
+          if (stageText) stageText.textContent = job.speed || "Processing pipeline...";
+          if (percentText) percentText.textContent = `${Math.round(job.progress_percent)}%`;
+          if (progressBar) progressBar.style.width = `${job.progress_percent}%`;
+        },
+        async (job) => {
+          if (btn) btn.disabled = false;
+          if (stageBadge) {
+            stageBadge.className = "pill completed";
+            stageBadge.textContent = "Completed";
+          }
+          if (stageText) stageText.textContent = "Pipeline finished successfully!";
+          if (percentText) percentText.textContent = "100%";
+          if (progressBar) progressBar.style.width = "100%";
+          if (finishedBox) finishedBox.style.display = "flex";
+
+          if (job.obsidian_link && vaultLinkText) {
+            vaultLinkText.textContent = job.obsidian_link;
+            vaultLink.onclick = () => {
+              navigator.clipboard.writeText(job.obsidian_link);
+              showToast("Copied " + job.obsidian_link);
+            };
+          }
+
+          if (job.obsidian_uri) {
+            const openBtn = document.getElementById("ingest-open-obsidian");
+            if (openBtn) {
+              openBtn.href = job.obsidian_uri;
+              openBtn.textContent = "Open Note in Obsidian";
+            }
+          }
+
+          if (job.output_files && job.output_files.vault_note) {
+            loadNoteDetails(job.output_files.vault_note);
+          }
+          showToast("Vault Note Generated!");
+        },
+        (job) => {
+          if (btn) btn.disabled = false;
+          const isCancelled = job.status === "cancelled";
+          if (stageBadge) {
+            stageBadge.className = `pill ${isCancelled ? "cancelled" : "failed"}`;
+            stageBadge.textContent = isCancelled ? "Cancelled" : "Failed";
+          }
+          if (stageText) stageText.textContent = job.error || (isCancelled ? "Job cancelled by user" : "Job failed");
+          if (job.obsidian_uri && finishedBox) {
+            finishedBox.style.display = "flex";
+            if (job.obsidian_link && vaultLinkText) {
+              vaultLinkText.textContent = job.obsidian_link;
+            }
+            const openBtn = document.getElementById("ingest-open-obsidian");
+            if (openBtn) {
+              openBtn.href = job.obsidian_uri;
+              openBtn.textContent = "Open Error Report in Obsidian";
+            }
+          }
+          showToast(isCancelled ? "Ingestion cancelled" : ("Pipeline failed: " + (job.error || "unknown error")));
+        }
+      );
     }
 
     async function cancelJob(jobId) {
@@ -2039,13 +2134,22 @@
     }
 
 
-    // Generic Job Poller
+    // Generic Job Poller (Resilient with auto-retry)
     function pollJob(jobId, onProgress, onComplete, onError) {
       if (state.activePollers[jobId]) clearInterval(state.activePollers[jobId]);
+      let consecutiveErrors = 0;
       const poller = setInterval(async () => {
         try {
           const res = await fetch(`/api/v1/status/${jobId}`);
-          if (!res.ok) throw new Error("Status failed");
+          if (!res.ok) {
+            consecutiveErrors++;
+            // Allow up to 5 consecutive failed pings during socket restarts or busy CPU
+            if (consecutiveErrors >= 5) {
+              throw new Error("Job status check failed after multiple attempts");
+            }
+            return;
+          }
+          consecutiveErrors = 0;
           const job = await res.json();
 
           if (onProgress) onProgress(job);
@@ -2922,6 +3026,21 @@
             stageBadge.className = `pill ${isCancelled ? "cancelled" : "failed"}`;
             stageBadge.textContent = isCancelled ? "Cancelled" : "Failed";
             stageText.textContent = job.error || (isCancelled ? "Job cancelled by user" : "Job failed");
+            if (job.obsidian_uri) {
+              finishedBox.style.display = "flex";
+              if (job.obsidian_link) {
+                vaultLinkText.textContent = job.obsidian_link;
+                vaultLink.onclick = () => {
+                  navigator.clipboard.writeText(job.obsidian_link);
+                  showToast("Copied " + job.obsidian_link);
+                };
+              }
+              const openBtn = document.getElementById("ingest-open-obsidian");
+              if (openBtn) {
+                openBtn.href = job.obsidian_uri;
+                openBtn.textContent = "Open Error Report in Obsidian";
+              }
+            }
             showToast(isCancelled ? "Ingestion cancelled" : ("Pipeline failed: " + (job.error || "unknown error")));
           }
         );
