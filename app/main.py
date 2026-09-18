@@ -103,6 +103,7 @@ static_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 @app.get("/api/v1/health")
+@app.get("/health", include_in_schema=False)
 def health_check():
     d_stat = shutil.disk_usage("/mnt/d")
     active_jobs = job_manager.get_active_job_count()
