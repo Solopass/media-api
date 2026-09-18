@@ -25,11 +25,23 @@
 - **Broadcast-Standard Subtitle Exports**: Instant client-side download for `.SRT`, `.VTT`, and `.JSON` formats with EBU-compliant 42-character line wrapping.
 - **Volume Normalization & 16kHz WAV**: Built-in dual-pass EBU R128 loudness filter (`loudnorm`) and 16kHz mono WAV downsampler for fast speech inference.
 
-### 3. Queue Management & Vault Explorer
+### 3. Multi-URL & Playlist Batch Queue
+- **Mode Switcher**: Easily toggle between single-target ingestion and multi-URL batch mode.
+- **YouTube Playlist & Channel Auto-Expansion**: Sub-second flat metadata extraction resolves playlists or channels into individual video items without downloading media upfront.
+- **Interactive Pre-flight Checklist**: Review video thumbnails, titles, and durations before launching, with selective checkbox toggles and "Select / Deselect All" helpers.
+- **Sequential Pipeline Queue**: Ingests media items one-by-one to preserve 100% smooth host gaming and prevent local LLM / Ollama GPU memory collisions.
+- **Per-Item Obsidian Deep-Links**: Live progress indicators update in real time; each finished item row immediately provides an **Open Note** button and wikilink badge (`[[Transcripts/...]]`).
+
+### 4. GPU VRAM & Memory Footprint Awareness
+- **Real-Time Adapter VRAM Telemetry**: Queries dedicated adapter VRAM (e.g. AMD Radeon RX 9070 XT 16GB) to prevent model-induced system paging.
+- **Dynamic Model Headroom Badges**: Color-coded badges next to the model selector inform the user if a model fits with safe headroom (`Fits VRAM`), runs close to the limit (`Tight`), or exceeds dedicated VRAM (`Exceeds VRAM`).
+- **In-Place Re-Summarization**: Switch summary presets (`executive`, `meeting`, `timeline`, `technical`, `bullets`) or change models for existing vault notes in-place without re-transcribing.
+
+### 5. Queue Management, Auto-Updates & Vault Explorer
 - **URL Metadata Pre-fetch**: Sub-second video card preview (title, uploader, duration, thumbnail) on typing or pasting a URL.
+- **Automatic `yt-dlp` Self-Updating**: Background checks on startup and daily ensure extractor definitions never fail against YouTube website updates.
 - **Live Job Monitor**: Real-time task progress, speeds, cancellation (`✕ Cancel`), and history purging (`Clear Finished`).
 - **Vault Explorer Tab**: Recursively scans recent markdown transcripts in `D:\AI\Vault\Transcripts`, displays tags and metadata, copies wikilinks with one click, and offers an embedded preview drawer.
-- **Multi-File Batch Queue Tray**: Button-scoped drag-and-drop queue for processing batches sequentially with isolated error handling.
 - **Dynamic Idle Shutdown**: Configure auto-sleep directly from the header (`1m`, `5m`, `15m`, `30m`, `Keep Awake`).
 
 ---
