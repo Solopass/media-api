@@ -9,7 +9,10 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from datetime import datetime
 
-from app.models.schemas import IngestRequest, JobResponse, JobStatus, ResummarizeRequest, ResummarizeResponse
+from app.models.schemas import (
+    IngestRequest, JobResponse, JobStatus, ResummarizeRequest, ResummarizeResponse,
+    PlaylistExpandRequest, PlaylistExpandResponse, PlaylistItem
+)
 from app.queue.manager import job_manager
 from app.services.ytdlp_service import YtDlpService
 from app.services.ffmpeg_service import FFmpegService
@@ -307,4 +310,25 @@ def resummarize_note(req: ResummarizeRequest):
         model=req.llm_model,
         preset=req.summary_preset
     )
+
+@router.post("/batch/expand-playlist", response_model=PlaylistExpandResponse)
+def expand_playlist(req: PlaylistExpandRequest):
+    """
+    Extract flat metadata and video list from a YouTube playlist, channel, or video URL.
+    Used by the Batch Queue UI to preview and selectively ingest videos.
+    """
+    if not req.url or not req.url.strip():
+        raise HTTPException(status_code=400, detail="A valid URL must be provided")
+
+    try:
+        data = YtDlpService.extract_playlist(req.url.strip(), max_items=req.max_items)
+        return PlaylistExpandResponse(
+            title=data.get("title", "Playlist"),
+            uploader=data.get("uploader"),
+            total_items=data.get("total_items", 0),
+            items=[PlaylistItem(**item) for item in data.get("items", [])]
+        )
+    except Exception as e:
+        logger.warning(f"[batch] Failed to expand playlist for {req.url}: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to expand playlist: {str(e)}")
 

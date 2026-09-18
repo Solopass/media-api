@@ -106,3 +106,21 @@ class ResummarizeResponse(BaseModel):
     model: str
     preset: str
 
+class PlaylistItem(BaseModel):
+    title: str
+    url: str
+    duration: float = 0.0
+    duration_formatted: str = "00:00"
+    thumbnail: Optional[str] = None
+    uploader: Optional[str] = None
+
+class PlaylistExpandRequest(BaseModel):
+    url: str = Field(..., description="YouTube playlist, channel, or video URL")
+    max_items: int = Field(default=50, description="Maximum number of items to extract")
+
+class PlaylistExpandResponse(BaseModel):
+    title: str
+    uploader: Optional[str] = None
+    total_items: int
+    items: List[PlaylistItem]
+

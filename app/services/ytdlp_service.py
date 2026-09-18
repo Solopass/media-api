@@ -134,3 +134,88 @@ class YtDlpService:
                 "file_path": filename,
                 "url": url
             }
+
+    @staticmethod
+    def extract_playlist(url: str, max_items: int = 50) -> Dict[str, Any]:
+        """
+        Fast flat extraction of playlist items or single video metadata.
+        Returns a dict with title, uploader, total_items, and items list.
+        """
+        ydl_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "skip_download": True,
+            "extract_flat": True,
+            "playlistend": max_items,
+            "socket_timeout": 8,
+        }
+        cookiefile = _get_cookiefile()
+        if cookiefile:
+            ydl_opts["cookiefile"] = cookiefile
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            if not info:
+                raise ValueError("Could not extract playlist info from URL")
+
+            items = []
+            entries = info.get("entries")
+            if entries is not None:
+                playlist_title = info.get("title") or "Playlist"
+                playlist_uploader = info.get("uploader") or info.get("channel")
+                for entry in entries:
+                    if not entry:
+                        continue
+                    video_id = entry.get("id") or ""
+                    entry_url = entry.get("url") or (f"https://www.youtube.com/watch?v={video_id}" if video_id else "")
+                    if not entry_url.startswith("http"):
+                        entry_url = f"https://www.youtube.com/watch?v={video_id}" if video_id else entry_url
+
+                    duration = float(entry.get("duration") or 0.0)
+                    mins = int(duration // 60)
+                    secs = int(duration % 60)
+                    duration_formatted = f"{mins:02d}:{secs:02d}"
+
+                    thumb = entry.get("thumbnail")
+                    if not thumb and entry.get("thumbnails") and isinstance(entry["thumbnails"], list):
+                        try:
+                            thumb = entry["thumbnails"][-1].get("url")
+                        except Exception:
+                            thumb = None
+
+                    items.append({
+                        "title": entry.get("title") or (f"Video {video_id}" if video_id else "Untitled Video"),
+                        "url": entry_url,
+                        "duration": duration,
+                        "duration_formatted": duration_formatted,
+                        "thumbnail": thumb,
+                        "uploader": entry.get("uploader") or entry.get("channel") or playlist_uploader
+                    })
+            else:
+                playlist_title = info.get("title") or "Single Video"
+                playlist_uploader = info.get("uploader") or info.get("channel")
+                duration = float(info.get("duration") or 0.0)
+                mins = int(duration // 60)
+                secs = int(duration % 60)
+                thumb = info.get("thumbnail")
+                if not thumb and info.get("thumbnails") and isinstance(info["thumbnails"], list):
+                    try:
+                        thumb = info["thumbnails"][-1].get("url")
+                    except Exception:
+                        thumb = None
+
+                items.append({
+                    "title": playlist_title,
+                    "url": url,
+                    "duration": duration,
+                    "duration_formatted": f"{mins:02d}:{secs:02d}",
+                    "thumbnail": thumb,
+                    "uploader": playlist_uploader
+                })
+
+            return {
+                "title": playlist_title,
+                "uploader": playlist_uploader,
+                "total_items": len(items),
+                "items": items
+            }

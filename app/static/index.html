@@ -782,6 +782,60 @@
       padding: 0.4rem 0.75rem;
       border-radius: var(--radius-sm);
       border: 1px solid var(--border-subtle);
+      gap: 0.5rem;
+    }
+    .batch-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+    .mode-toggle-group {
+      display: inline-flex;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 0.2rem;
+      margin-bottom: 0.9rem;
+      gap: 0.25rem;
+    }
+    .mode-toggle-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 0.35rem 0.75rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: var(--transition);
+    }
+    .mode-toggle-btn:hover {
+      color: var(--text-main);
+    }
+    .mode-toggle-btn.active {
+      background: var(--primary);
+      color: #000;
+      font-weight: 600;
+      box-shadow: 0 0 10px var(--primary-glow);
+    }
+    .batch-preview-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.4rem 0.6rem;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      font-size: 0.8rem;
+      transition: var(--transition);
+    }
+    .batch-preview-row:hover {
+      border-color: var(--primary);
     }
 
     /* Segment Table & Text Output */
@@ -1134,10 +1188,23 @@
           </div>
 
           <form id="form-ingest">
-            <div class="form-group">
+            <!-- Ingest Mode Switcher -->
+            <div class="mode-toggle-group">
+              <button type="button" class="mode-toggle-btn active" id="btn-ingest-mode-single">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                Single URL / File
+              </button>
+              <button type="button" class="mode-toggle-btn" id="btn-ingest-mode-batch">
+                <svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                Batch URLs / Playlist
+              </button>
+            </div>
+
+            <!-- Single Input Container -->
+            <div id="ingest-single-container" class="form-group">
               <label for="ingest-source">Media Source (Web URL or Local Path)</label>
               <div class="input-with-upload">
-                <input type="text" id="ingest-source" required placeholder="https://youtube.com/watch?v=... or D:\rec\meeting.wav">
+                <input type="text" id="ingest-source" placeholder="https://youtube.com/watch?v=... or D:\rec\meeting.wav">
                 <div class="upload-btn-target" id="ingest-upload-btn" title="Click to choose file, or drag & drop directly over this button">
                   <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                   <span class="upload-btn-text">Upload</span>
@@ -1160,6 +1227,41 @@
                 </div>
               </div>
               <span class="hint">Supports YouTube/Web URLs, or drop/upload local media files directly to D:\AI\Cache\uploads</span>
+            </div>
+
+            <!-- Batch Input Container -->
+            <div id="ingest-batch-container" class="form-group" style="display: none;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                <label for="ingest-batch-urls" style="margin-bottom: 0;">Media URLs (One per line, or YouTube Playlist URL)</label>
+                <span id="batch-url-counter" class="pill" style="font-size: 0.72rem; padding: 0.15rem 0.5rem; text-transform: none;">0 URLs</span>
+              </div>
+              <textarea id="ingest-batch-urls" rows="4" style="width: 100%; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-main); font-family: ui-monospace, Consolas, monospace; font-size: 0.82rem; padding: 0.6rem; resize: vertical;" placeholder="https://www.youtube.com/watch?v=...&#10;https://www.youtube.com/watch?v=...&#10;or https://www.youtube.com/playlist?list=..."></textarea>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.4rem; flex-wrap: wrap; gap: 0.5rem;">
+                <label class="switch-label" style="font-size: 0.8rem; margin-bottom: 0;">
+                  <span>Auto-expand Playlists</span>
+                  <label class="switch" style="transform: scale(0.85); margin-left: 0.3rem;">
+                    <input type="checkbox" id="batch-auto-expand" checked>
+                    <span class="slider"></span>
+                  </label>
+                </label>
+                <button type="button" class="btn-header-action" id="btn-resolve-batch" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; border-color: var(--primary); color: var(--primary);">
+                  <svg class="icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                  Resolve & Preview Items
+                </button>
+              </div>
+
+              <!-- Batch Items Checklist / Preview Card -->
+              <div id="batch-preview-card" style="display: none; margin-top: 0.75rem; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 0.75rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                  <strong id="batch-preview-title" style="font-size: 0.85rem; color: var(--text-main);">Resolved Items</strong>
+                  <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button type="button" id="btn-batch-select-all" style="background: transparent; border: none; color: var(--primary); font-size: 0.75rem; cursor: pointer;">Select All</button>
+                    <span style="color: var(--text-dim); font-size: 0.75rem;">|</span>
+                    <button type="button" id="btn-batch-deselect-all" style="background: transparent; border: none; color: var(--text-muted); font-size: 0.75rem; cursor: pointer;">Deselect All</button>
+                  </div>
+                </div>
+                <div id="batch-preview-items" style="max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.4rem;"></div>
+              </div>
             </div>
 
             <div class="form-row">
@@ -1254,7 +1356,7 @@
 
             <button type="submit" class="btn-submit" id="btn-submit-ingest">
               <svg class="icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-              Launch Ingest & Create Note
+              <span id="btn-submit-ingest-text">Launch Ingest & Create Note</span>
             </button>
           </form>
         </div>
@@ -1811,8 +1913,20 @@
       activePollers: {},
       lastIngestTranscript: null,
       lastSttTranscript: null,
-      batchCancelled: false
+      batchCancelled: false,
+      ingestMode: "single",
+      resolvedBatchItems: []
     };
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
 
     // DOM Elements
     const statusDot = document.getElementById("status-dot");
@@ -2796,6 +2910,165 @@
       showToast(`Batch queued: ${completedCount} files processed`);
     }
 
+    // Multi-URL Batch Queue Handler (Sequential Pipeline Execution)
+    async function handleBatchUrls(items, targetTab = "ingest") {
+      const tray = document.getElementById("batch-tray-container");
+      const titleEl = document.getElementById("batch-title");
+      const badge = document.getElementById("batch-count-badge");
+      const progressBar = document.getElementById("batch-total-progress");
+      const itemsList = document.getElementById("batch-items-list");
+      const cancelBtn = document.getElementById("btn-cancel-batch");
+      const closeBtn = document.getElementById("btn-close-batch");
+
+      tray.style.display = "block";
+      titleEl.textContent = "Multi-URL Ingest Queue";
+      closeBtn.style.display = "none";
+      cancelBtn.style.display = "inline-flex";
+      cancelBtn.textContent = "Cancel Remaining";
+      state.batchCancelled = false;
+
+      const total = items.length;
+      itemsList.innerHTML = items.map((item, i) => `
+        <div class="batch-item" id="batch-url-item-${i}">
+          <div style="display: flex; align-items: center; gap: 0.5rem; overflow: hidden; max-width: 60%;">
+            ${item.thumbnail ? `<img src="${item.thumbnail}" style="width: 28px; height: 18px; object-fit: cover; border-radius: 2px; flex-shrink: 0;" />` : '🎬'}
+            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(item.title || item.url)}">
+              ${escapeHtml(item.title || item.url)}
+            </span>
+            ${item.duration_formatted ? `<span class="hint" style="font-size: 0.7rem; flex-shrink: 0;">(${item.duration_formatted})</span>` : ''}
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0;">
+            <span class="pill queued" id="batch-url-status-${i}">Queued</span>
+            <div id="batch-url-actions-${i}" style="display: flex; gap: 0.3rem;"></div>
+          </div>
+        </div>
+      `).join("");
+
+      badge.textContent = `0 / ${total}`;
+      progressBar.style.width = "0%";
+
+      cancelBtn.onclick = () => {
+        state.batchCancelled = true;
+        cancelBtn.textContent = "Cancelling...";
+        showToast("Batch processing will stop after current item.");
+      };
+
+      closeBtn.onclick = () => {
+        tray.style.display = "none";
+      };
+
+      let completedCount = 0;
+
+      for (let i = 0; i < items.length; i++) {
+        if (state.batchCancelled) {
+          for (let j = i; j < items.length; j++) {
+            const s = document.getElementById(`batch-url-status-${j}`);
+            if (s && s.textContent === "Queued") {
+              s.className = "pill failed";
+              s.textContent = "Cancelled";
+            }
+          }
+          break;
+        }
+
+        const item = items[i];
+        const statusEl = document.getElementById(`batch-url-status-${i}`);
+        const actionsEl = document.getElementById(`batch-url-actions-${i}`);
+
+        if (statusEl) {
+          statusEl.className = "pill in_progress";
+          statusEl.textContent = "Starting...";
+        }
+
+        try {
+          const subfolderVal = document.getElementById("ingest-subfolder") ? document.getElementById("ingest-subfolder").value.trim() || "Transcripts" : "Transcripts";
+          const tagsVal = document.getElementById("ingest-tags") ? document.getElementById("ingest-tags").value.split(",").map(t => t.trim()).filter(Boolean) : [];
+          const presetVal = document.getElementById("ingest-summary-preset") ? document.getElementById("ingest-summary-preset").value : "executive";
+          const focusVal = document.getElementById("ingest-summary-focus") ? (document.getElementById("ingest-summary-focus").value.trim() || null) : null;
+
+          const body = {
+            source: item.url,
+            clip_start: null,
+            clip_end: null,
+            engine: document.getElementById("ingest-engine").value,
+            model_size: document.getElementById("ingest-whisper-size").value,
+            summarize: document.getElementById("ingest-summarize").checked,
+            llm_model: document.getElementById("ingest-llm-model").value,
+            summary_preset: presetVal,
+            summary_focus: focusVal,
+            vault_subfolder: subfolderVal,
+            tags: tagsVal
+          };
+
+          const res = await fetch("/api/v1/ingest", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+          });
+          if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || "Ingest request rejected");
+          }
+          const data = await res.json();
+
+          // Await job completion via pollJob
+          await new Promise((resolve) => {
+            pollJob(
+              data.job_id,
+              (job) => {
+                if (statusEl) {
+                  statusEl.className = `pill ${job.status}`;
+                  const pct = Math.round(job.progress_percent || 0);
+                  const stage = (job.speed && job.speed.includes("MB/s")) ? "Downloading" : (pct > 75 ? "Summarizing" : (pct > 30 ? "Transcribing" : "Processing"));
+                  statusEl.textContent = `${pct}% ${stage}`;
+                }
+              },
+              (job) => {
+                if (statusEl) {
+                  statusEl.className = "pill completed";
+                  statusEl.textContent = "Completed";
+                }
+                if (actionsEl && job.obsidian_uri) {
+                  actionsEl.innerHTML = `
+                    <a href="${job.obsidian_uri}" class="btn-obsidian" style="font-size: 0.72rem; padding: 0.2rem 0.55rem; text-decoration: none;" title="Open Note in Obsidian" target="_blank">Open Note</a>
+                  `;
+                }
+                resolve(job);
+              },
+              (job) => {
+                if (statusEl) {
+                  statusEl.className = "pill failed";
+                  statusEl.textContent = "Failed";
+                }
+                if (actionsEl && job.obsidian_uri) {
+                  actionsEl.innerHTML = `
+                    <a href="${job.obsidian_uri}" class="btn-obsidian" style="font-size: 0.72rem; padding: 0.2rem 0.55rem; background: #ef4444; text-decoration: none;" title="View Error Report in Obsidian" target="_blank">Error Note</a>
+                  `;
+                }
+                resolve(job);
+              }
+            );
+          });
+        } catch (err) {
+          console.error(`Batch URL processing error for ${item.url}`, err);
+          if (statusEl) {
+            statusEl.className = "pill failed";
+            statusEl.textContent = "Error";
+          }
+        }
+
+        completedCount++;
+        badge.textContent = `${completedCount} / ${total}`;
+        progressBar.style.width = `${Math.round((completedCount / total) * 100)}%`;
+        fetchJobs();
+        fetchHealth();
+      }
+
+      cancelBtn.style.display = "none";
+      closeBtn.style.display = "inline-flex";
+      showToast(`Batch completed: ${completedCount} / ${total} processed`);
+    }
+
     // Targeted Drag & Drop and Upload Helper (Strictly button-scoped)
     function setupUploadTarget(btnId, fileInputId, textInputId, progContainerId, progFillId, progTextId) {
       const btn = document.getElementById(btnId);
@@ -3000,9 +3273,197 @@
       }
     }
 
+    // Ingest Mode Switcher Handlers
+    const btnModeSingle = document.getElementById("btn-ingest-mode-single");
+    const btnModeBatch = document.getElementById("btn-ingest-mode-batch");
+    const singleContainer = document.getElementById("ingest-single-container");
+    const batchContainer = document.getElementById("ingest-batch-container");
+    const batchTextarea = document.getElementById("ingest-batch-urls");
+    const batchCounter = document.getElementById("batch-url-counter");
+    const btnSubmitIngestText = document.getElementById("btn-submit-ingest-text");
+    const btnResolveBatch = document.getElementById("btn-resolve-batch");
+    const batchPreviewCard = document.getElementById("batch-preview-card");
+    const batchPreviewItems = document.getElementById("batch-preview-items");
+    const btnSelectAll = document.getElementById("btn-batch-select-all");
+    const btnDeselectAll = document.getElementById("btn-batch-deselect-all");
+
+    function updateBatchCount() {
+      const checkedBoxes = batchPreviewItems ? batchPreviewItems.querySelectorAll("input[type='checkbox']:checked") : [];
+      let count = 0;
+      if (batchPreviewCard && batchPreviewCard.style.display !== "none") {
+        count = checkedBoxes.length;
+      } else if (batchTextarea) {
+        const lines = batchTextarea.value.split("\n").map(l => l.trim()).filter(Boolean);
+        count = lines.length;
+      }
+      if (batchCounter) batchCounter.textContent = `${count} URLs`;
+      if (state.ingestMode === "batch" && btnSubmitIngestText) {
+        btnSubmitIngestText.textContent = `Launch Batch Ingest (${count} items)`;
+      }
+    }
+
+    if (btnModeSingle && btnModeBatch) {
+      btnModeSingle.addEventListener("click", () => {
+        state.ingestMode = "single";
+        btnModeSingle.classList.add("active");
+        btnModeBatch.classList.remove("active");
+        if (singleContainer) singleContainer.style.display = "block";
+        if (batchContainer) batchContainer.style.display = "none";
+        if (btnSubmitIngestText) btnSubmitIngestText.textContent = "Launch Ingest & Create Note";
+      });
+
+      btnModeBatch.addEventListener("click", () => {
+        state.ingestMode = "batch";
+        btnModeBatch.classList.add("active");
+        btnModeSingle.classList.remove("active");
+        if (singleContainer) singleContainer.style.display = "none";
+        if (batchContainer) batchContainer.style.display = "block";
+        updateBatchCount();
+      });
+    }
+
+    if (batchTextarea) {
+      batchTextarea.addEventListener("input", () => {
+        if (batchPreviewCard) batchPreviewCard.style.display = "none";
+        state.resolvedBatchItems = [];
+        updateBatchCount();
+      });
+    }
+
+    if (btnSelectAll && btnDeselectAll && batchPreviewItems) {
+      btnSelectAll.addEventListener("click", () => {
+        batchPreviewItems.querySelectorAll("input[type='checkbox']").forEach(cb => cb.checked = true);
+        updateBatchCount();
+      });
+      btnDeselectAll.addEventListener("click", () => {
+        batchPreviewItems.querySelectorAll("input[type='checkbox']").forEach(cb => cb.checked = false);
+        updateBatchCount();
+      });
+    }
+
+    if (btnResolveBatch) {
+      btnResolveBatch.addEventListener("click", async () => {
+        const rawText = batchTextarea ? batchTextarea.value.trim() : "";
+        if (!rawText) {
+          showToast("Please enter at least one URL to resolve.");
+          return;
+        }
+
+        const lines = rawText.split("\n").map(l => l.trim()).filter(Boolean);
+        if (lines.length === 0) {
+          showToast("No valid URLs found in input.");
+          return;
+        }
+
+        const autoExpand = document.getElementById("batch-auto-expand") ? document.getElementById("batch-auto-expand").checked : true;
+        btnResolveBatch.disabled = true;
+        btnResolveBatch.innerHTML = '<span class="status-dot in_progress"></span> Resolving...';
+
+        state.resolvedBatchItems = [];
+        try {
+          for (const url of lines) {
+            const isPlaylist = url.includes("list=") || url.includes("/playlist") || url.includes("/channel/") || url.includes("/@");
+            if (autoExpand || isPlaylist) {
+              try {
+                const res = await fetch("/api/v1/batch/expand-playlist", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ url: url, max_items: 50 })
+                });
+                if (res.ok) {
+                  const data = await res.json();
+                  if (data.items && data.items.length > 0) {
+                    state.resolvedBatchItems.push(...data.items);
+                    continue;
+                  }
+                }
+              } catch (expandErr) {
+                console.warn("Failed to expand URL via API, falling back to direct URL", url, expandErr);
+              }
+            }
+            // Fallback: direct entry
+            state.resolvedBatchItems.push({
+              title: url,
+              url: url,
+              duration_formatted: "00:00",
+              thumbnail: null,
+              uploader: null
+            });
+          }
+
+          if (state.resolvedBatchItems.length === 0) {
+            showToast("No items could be resolved.");
+            return;
+          }
+
+          if (batchPreviewItems) {
+            batchPreviewItems.innerHTML = state.resolvedBatchItems.map((item, idx) => `
+              <label class="batch-preview-row" style="cursor: pointer;">
+                <input type="checkbox" data-index="${idx}" checked style="accent-color: var(--primary); cursor: pointer;" />
+                ${item.thumbnail ? `<img src="${item.thumbnail}" style="width: 30px; height: 18px; object-fit: cover; border-radius: 2px; flex-shrink: 0;" />` : ''}
+                <div style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                  <strong style="color: var(--text-main); font-size: 0.8rem;">${escapeHtml(item.title || item.url)}</strong>
+                  ${item.uploader ? `<span style="color: var(--text-dim); font-size: 0.72rem; margin-left: 0.4rem;">${escapeHtml(item.uploader)}</span>` : ''}
+                </div>
+                ${item.duration_formatted ? `<span class="hint" style="font-size: 0.72rem; flex-shrink: 0;">${item.duration_formatted}</span>` : ''}
+              </label>
+            `).join("");
+
+            batchPreviewItems.querySelectorAll("input[type='checkbox']").forEach(cb => {
+              cb.addEventListener("change", updateBatchCount);
+            });
+          }
+
+          if (batchPreviewCard) batchPreviewCard.style.display = "block";
+          showToast(`Resolved ${state.resolvedBatchItems.length} item(s)`);
+          updateBatchCount();
+        } catch (err) {
+          showToast("Resolution error: " + err.message);
+        } finally {
+          btnResolveBatch.disabled = false;
+          btnResolveBatch.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Resolve & Preview Items';
+        }
+      });
+    }
+
     // FORM 1: Ingest
     document.getElementById("form-ingest").addEventListener("submit", async (e) => {
       e.preventDefault();
+
+      if (state.ingestMode === "batch") {
+        let itemsToRun = [];
+        if (batchPreviewCard && batchPreviewCard.style.display !== "none") {
+          const checkedCbs = batchPreviewItems ? Array.from(batchPreviewItems.querySelectorAll("input[type='checkbox']:checked")) : [];
+          itemsToRun = checkedCbs.map(cb => {
+            const idx = parseInt(cb.getAttribute("data-index"), 10);
+            return state.resolvedBatchItems[idx];
+          }).filter(Boolean);
+        } else {
+          const lines = batchTextarea ? batchTextarea.value.split("\n").map(l => l.trim()).filter(Boolean) : [];
+          itemsToRun = lines.map(u => ({ title: u, url: u, duration_formatted: "" }));
+        }
+
+        if (itemsToRun.length === 0) {
+          showToast("Please enter or select at least one media URL to ingest.");
+          return;
+        }
+
+        const tray = document.getElementById("batch-tray-container");
+        if (tray) {
+          tray.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+        await handleBatchUrls(itemsToRun, "ingest");
+        return;
+      }
+
+      // Single Mode Ingest
+      const sourceInput = document.getElementById("ingest-source");
+      const sourceVal = sourceInput ? sourceInput.value.trim() : "";
+      if (!sourceVal) {
+        showToast("Please enter a media URL or upload a file.");
+        return;
+      }
+
       const btn = document.getElementById("btn-submit-ingest");
       const emptyBox = document.getElementById("ingest-empty");
       const liveBox = document.getElementById("ingest-live");
@@ -3022,7 +3483,7 @@
       const focusVal = document.getElementById("ingest-summary-focus") ? (document.getElementById("ingest-summary-focus").value.trim() || null) : null;
 
       const body = {
-        source: document.getElementById("ingest-source").value.trim(),
+        source: sourceVal,
         clip_start: document.getElementById("ingest-clip-start").value.trim() || null,
         clip_end: document.getElementById("ingest-clip-end").value.trim() || null,
         engine: document.getElementById("ingest-engine").value,
