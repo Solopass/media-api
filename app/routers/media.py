@@ -11,9 +11,14 @@ from app.config import settings, normalize_path
 
 router = APIRouter(prefix="/api/v1", tags=["Media Operations"])
 
+import logging
+
+logger = logging.getLogger("media_api")
+
 def run_download_task(job_id: str, req: DownloadRequest):
     if job_manager.is_cancelled(job_id):
         return
+    job_manager.pipeline_started()
     job_manager.update_job(job_id, status=JobStatus.RUNNING)
     try:
         if job_manager.is_cancelled(job_id):
@@ -52,17 +57,20 @@ def run_download_task(job_id: str, req: DownloadRequest):
             output_files={"media": info["file_path"]}
         )
     except Exception as e:
+        logger.exception(f"[media] Download task failed for job {job_id}: {e}")
         if not job_manager.is_cancelled(job_id):
             job_manager.update_job(job_id, status=JobStatus.FAILED, error=str(e))
+    finally:
+        job_manager.pipeline_ended()
 
 def run_clip_task(job_id: str, req: ClipRequest):
     if job_manager.is_cancelled(job_id):
         return
+    job_manager.pipeline_started()
     job_manager.update_job(job_id, status=JobStatus.RUNNING)
     try:
         if job_manager.is_cancelled(job_id):
             return
-
 
         # If source is a URL, download it first
         if req.source.startswith("http://") or req.source.startswith("https://"):
@@ -97,8 +105,11 @@ def run_clip_task(job_id: str, req: ClipRequest):
             output_files={"clip": str(clipped_file)}
         )
     except Exception as e:
+        logger.exception(f"[media] Clip task failed for job {job_id}: {e}")
         if not job_manager.is_cancelled(job_id):
             job_manager.update_job(job_id, status=JobStatus.FAILED, error=str(e))
+    finally:
+        job_manager.pipeline_ended()
 
 @router.get("/media/probe", response_model=MediaProbeResponse)
 def probe_media_info(url: str = Query(..., description="Target video/audio URL or local file path to probe")):

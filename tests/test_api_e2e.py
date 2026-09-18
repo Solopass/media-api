@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app
+from app.config import settings
 
 client = TestClient(app)
 
@@ -125,7 +126,7 @@ def test_vault_note_endpoint():
     data = response.json()
     assert data["filename"] == "sample_transcription_format.md"
     assert "obsidian_uri" in data
-    assert "obsidian://open?vault=Vault" in data["obsidian_uri"]
+    assert f"obsidian://open?vault={settings.vault_name}" in data["obsidian_uri"]
     assert "content" in data
     assert len(data["content"]) > 0
 

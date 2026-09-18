@@ -14,12 +14,14 @@ router = APIRouter(prefix="/api/v1", tags=["Media Upload & Streaming"])
 ALLOWED_MEDIA_ROOTS = [
     Path("/mnt/d/Output"),
     Path("/mnt/d/AI/Cache"),
-    Path("/mnt/d/AI/Vault")
+    Path("/mnt/d/AI/Vault"),
+    Path("/mnt/d/OBVLT")
 ]
 
 ALLOWED_NOTE_ROOTS = [
     Path("/mnt/d/AI/Vault"),
-    Path("/mnt/d/Output/Transcripts")
+    Path("/mnt/d/Output/Transcripts"),
+    Path("/mnt/d/OBVLT")
 ]
 
 ALLOWED_EXTENSIONS = {
@@ -125,16 +127,20 @@ def get_vault_note(path: str = Query(..., description="Path to markdown note in 
 
     try:
         rel_to_vault = target_path.resolve().relative_to(Path("/mnt/d/AI/Vault").resolve())
+        rel_to_vault = Path("Agent") / rel_to_vault if settings.vault_name == "OBVLT" else rel_to_vault
     except Exception:
         try:
-            rel_to_vault = target_path.resolve().relative_to(Path("/mnt/d/Output/Transcripts").resolve())
-            rel_to_vault = Path("Transcripts") / rel_to_vault
+            rel_to_vault = target_path.resolve().relative_to(Path("/mnt/d/OBVLT").resolve())
         except Exception:
-            rel_to_vault = Path(f"Transcripts/{target_path.name}")
+            try:
+                rel_to_vault = target_path.resolve().relative_to(Path("/mnt/d/Output/Transcripts").resolve())
+                rel_to_vault = Path("Agent/Transcripts") / rel_to_vault if settings.vault_name == "OBVLT" else Path("Transcripts") / rel_to_vault
+            except Exception:
+                rel_to_vault = Path(f"Agent/Transcripts/{target_path.name}") if settings.vault_name == "OBVLT" else Path(f"Transcripts/{target_path.name}")
 
     rel_posix = rel_to_vault.as_posix()
     encoded_file = urllib.parse.quote(rel_posix)
-    obsidian_uri = f"obsidian://open?vault=Vault&file={encoded_file}"
+    obsidian_uri = f"obsidian://open?vault={settings.vault_name}&file={encoded_file}"
     parent_posix = rel_to_vault.parent.as_posix()
     obsidian_link = f"[[{parent_posix}/{target_path.stem}]]" if parent_posix != "." else f"[[{target_path.stem}]]"
 
@@ -198,12 +204,16 @@ def get_recent_vault_notes(limit: int = Query(15, ge=1, le=100, description="Max
 
             try:
                 rel_to_vault = p.resolve().relative_to(Path("/mnt/d/AI/Vault").resolve())
+                rel_to_vault = Path("Agent") / rel_to_vault if settings.vault_name == "OBVLT" else rel_to_vault
             except Exception:
-                rel_to_vault = Path(f"Transcripts/{p.name}")
+                try:
+                    rel_to_vault = p.resolve().relative_to(Path("/mnt/d/OBVLT").resolve())
+                except Exception:
+                    rel_to_vault = Path(f"Agent/Transcripts/{p.name}") if settings.vault_name == "OBVLT" else Path(f"Transcripts/{p.name}")
 
             rel_posix = rel_to_vault.as_posix()
             encoded_file = urllib.parse.quote(rel_posix)
-            obsidian_uri = f"obsidian://open?vault=Vault&file={encoded_file}"
+            obsidian_uri = f"obsidian://open?vault={settings.vault_name}&file={encoded_file}"
             parent_posix = rel_to_vault.parent.as_posix()
             obsidian_link = f"[[{parent_posix}/{p.stem}]]" if parent_posix != "." else f"[[{p.stem}]]"
 

@@ -13,19 +13,41 @@ from app.config import normalize_path
 
 router = APIRouter(prefix="/api/v1", tags=["Speech-To-Text Transcription"])
 
+import logging
+import traceback
+
+logger = logging.getLogger("media_api")
+
 def run_transcribe_task(job_id: str, req: TranscribeRequest):
     if job_manager.is_cancelled(job_id):
         return
+
+    job_manager.pipeline_started()
     job_manager.update_job(job_id, status=JobStatus.RUNNING)
     try:
-
         if job_manager.is_cancelled(job_id):
             return
 
         # Handle online media URL
         if req.source.startswith("http://") or req.source.startswith("https://"):
-            job_manager.update_job(job_id, progress_percent=10.0, speed="Downloading...")
-            info = YtDlpService.download(req.source, audio_only=True, target_format="mp3")
+            job_manager.update_job(job_id, progress_percent=10.0, speed="Starting download...")
+
+            def _dl_progress(d):
+                if job_manager.is_cancelled(job_id):
+                    raise RuntimeError("Download cancelled by user")
+                if d.get("status") == "downloading":
+                    total = d.get("total_bytes") or d.get("total_bytes_estimate") or 1
+                    downloaded = d.get("downloaded_bytes", 0)
+                    pct = 10.0 + min(20.0, (downloaded / total) * 20.0)
+                    speed_mb = (d.get("speed") or 0) / (1024 * 1024)
+                    eta = d.get("eta") or 0
+                    job_manager.update_job(
+                        job_id,
+                        progress_percent=round(pct, 1),
+                        speed=f"Downloading audio ({speed_mb:.1f} MB/s, ETA {eta}s)"
+                    )
+
+            info = YtDlpService.download(req.source, audio_only=True, target_format="mp3", progress_hook=_dl_progress)
             source_path = Path(info["file_path"])
             media = {"title": info.get("title"), "uploader": info.get("uploader"), "url": req.source}
         else:
@@ -75,6 +97,7 @@ def run_transcribe_task(job_id: str, req: TranscribeRequest):
             job_id,
             status=JobStatus.COMPLETED,
             progress_percent=100.0,
+            speed="Done",
             output_files={
                 "audio": str(audio_path),
                 "text": str(out_txt),
@@ -82,8 +105,11 @@ def run_transcribe_task(job_id: str, req: TranscribeRequest):
             }
         )
     except Exception as e:
+        logger.exception(f"[transcribe] Transcription task failed for job {job_id}: {e}")
         if not job_manager.is_cancelled(job_id):
             job_manager.update_job(job_id, status=JobStatus.FAILED, error=str(e))
+    finally:
+        job_manager.pipeline_ended()
 
 @router.post("/transcribe", response_model=JobResponse)
 def transcribe_media(req: TranscribeRequest, background_tasks: BackgroundTasks):
