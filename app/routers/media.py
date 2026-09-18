@@ -8,6 +8,7 @@ from app.queue.manager import job_manager
 from app.services.ytdlp_service import YtDlpService
 from app.services.ffmpeg_service import FFmpegService
 from app.config import settings, normalize_path
+from app.services.updater_service import UpdaterService
 
 router = APIRouter(prefix="/api/v1", tags=["Media Operations"])
 
@@ -149,4 +150,10 @@ def clip_media(req: ClipRequest, background_tasks: BackgroundTasks):
         message=f"Clip extraction queued ({req.start_time} -> {req.end_time})",
         created_at=datetime.now().isoformat()
     )
+
+@router.post("/update-ytdlp")
+async def update_ytdlp(force: bool = Query(True, description="Force update check even if checked recently")):
+    """Check for and apply yt-dlp updates."""
+    return await UpdaterService.run_update(force=force)
+
 

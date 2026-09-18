@@ -18,6 +18,7 @@ from app.config import settings
 from app.queue.manager import job_manager
 from app.models.schemas import ShutdownRequest, ShutdownResponse, ConfigIdleRequest
 from app.routers import media, transcribe, ingest, jobs, upload
+from app.services.updater_service import UpdaterService
 
 logging.basicConfig(
     level=logging.INFO,
@@ -61,12 +62,14 @@ async def idle_watchdog():
 async def lifespan(app: FastAPI):
     # Startup
     watchdog_task = asyncio.create_task(idle_watchdog())
+    updater_task = asyncio.create_task(UpdaterService.background_auto_update())
     yield
     # Graceful Shutdown
     watchdog_task.cancel()
+    updater_task.cancel()
     try:
-        await watchdog_task
-    except asyncio.CancelledError:
+        await asyncio.gather(watchdog_task, updater_task, return_exceptions=True)
+    except Exception:
         pass
 
 app = FastAPI(
@@ -119,6 +122,9 @@ def health_check():
         "idle_seconds": idle_sec,
         "auto_close_enabled": settings.auto_close,
         "idle_timeout_seconds": settings.idle_timeout_seconds,
+        "ytdlp_version": UpdaterService.get_installed_version(),
+        "ytdlp_last_update_check": UpdaterService.get_last_update_time(),
+        "auto_update_ytdlp": settings.auto_update_ytdlp,
         "storage": {
             "d_drive_free_gb": round(d_stat.free / (1024**3), 2),
             "c_drive_protected_zero_leak": True

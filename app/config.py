@@ -45,6 +45,10 @@ class Settings(BaseModel):
     idle_timeout_seconds: int = int(os.getenv("MEDIA_API_IDLE_TIMEOUT", "300"))
     auto_close: bool = True
 
+    # Auto-Update yt-dlp (Daily check on startup / background)
+    auto_update_ytdlp: bool = os.getenv("MEDIA_API_AUTO_UPDATE_YTDLP", "true").lower() in ("1", "true", "yes")
+    ytdlp_update_interval_seconds: int = int(os.getenv("MEDIA_API_YTDLP_UPDATE_INTERVAL", "86400"))  # 24h
+
     def setup_directories(self):
         for path in [
             self.output_videos,

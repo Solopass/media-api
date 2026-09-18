@@ -1039,6 +1039,10 @@
           <svg class="icon" viewBox="0 0 24 24"><path d="M22 12H2"></path><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path><line x1="6" y1="16" x2="6.01" y2="16"></line><line x1="10" y1="16" x2="10.01" y2="16"></line></svg>
           D: Drive: <strong id="val-storage">-- GB Free</strong>
         </div>
+        <div class="stat-chip" id="chip-ytdlp" title="yt-dlp Engine Version (Auto-updated daily). Click to check/update now." style="cursor: pointer;">
+          <svg class="icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          yt-dlp: <strong id="val-ytdlp">--</strong>
+        </div>
         <div class="stat-chip" title="Configure Idle Auto-Shutdown Timeout">
           <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
           Idle: <strong id="val-idle">--s</strong>
@@ -1804,6 +1808,8 @@
     const statusDot = document.getElementById("status-dot");
     const txtStatus = document.getElementById("txt-status");
     const valStorage = document.getElementById("val-storage");
+    const valYtdlp = document.getElementById("val-ytdlp");
+    const chipYtdlp = document.getElementById("chip-ytdlp");
     const valIdle = document.getElementById("val-idle");
     const badgeActiveJobs = document.getElementById("badge-active-jobs");
     const toastEl = document.getElementById("toast");
@@ -1879,6 +1885,7 @@
         statusDot.classList.remove("offline");
         txtStatus.textContent = "Online (" + data.workstation + ")";
         valStorage.textContent = data.storage ? `${data.storage.d_drive_free_gb} GB Free` : "D: Free";
+        if (data.ytdlp_version && valYtdlp) valYtdlp.textContent = data.ytdlp_version;
         valIdle.textContent = `${data.idle_seconds}s / ${data.idle_timeout_seconds}s`;
         badgeActiveJobs.textContent = data.active_jobs || 0;
 
@@ -1920,6 +1927,27 @@
           }
         } catch (err) {
           showToast("Failed to update idle timeout");
+        }
+      });
+    }
+
+    // Manual yt-dlp update trigger
+    if (chipYtdlp) {
+      chipYtdlp.addEventListener("click", async () => {
+        showToast("Checking for yt-dlp updates...", 4000);
+        try {
+          const res = await fetch("/api/v1/update-ytdlp?force=true", { method: "POST" });
+          const data = await res.json();
+          if (data.status === "success") {
+            if (valYtdlp) valYtdlp.textContent = data.version;
+            showToast(data.updated ? `yt-dlp updated: ${data.previous_version} -> ${data.version}` : `yt-dlp is up to date (${data.version})`, 4000);
+          } else if (data.status === "skipped") {
+            showToast(`yt-dlp: ${data.message}`, 4000);
+          } else {
+            showToast(`yt-dlp update check: ${data.error || "Failed"}`, 4000);
+          }
+        } catch (err) {
+          showToast(`Update check failed: ${err.message}`, 4000);
         }
       });
     }

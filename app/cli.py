@@ -192,12 +192,37 @@ def cmd_api(args):
         subprocess.run(["systemctl", "stop", "media-api.service"])
         subprocess.run(["systemctl", "restart", "media-api.socket"])
         print(f"{GREEN}[OK] media-api is in 0-RAM socket standby mode.{RESET}")
+    elif action == "update":
+        print(f"{CYAN}[*] Triggering yt-dlp update check...{RESET}")
+        res = post_json("/update-ytdlp", {})
+        if res.get("status") == "success":
+            if res.get("updated"):
+                print(f"{GREEN}[✓] yt-dlp updated: {res.get('previous_version')} -> {res.get('version')}{RESET}")
+            else:
+                print(f"{GREEN}[✓] yt-dlp is already up to date ({res.get('version')}){RESET}")
+        elif res.get("status") == "skipped":
+            print(f"{YELLOW}[i] {res.get('message')} (version {res.get('version')}){RESET}")
+        else:
+            print(f"{RED}[!] Update error: {res.get('error')}{RESET}")
+
+def cmd_update(args):
+    print(f"{CYAN}[*] Triggering yt-dlp update check...{RESET}")
+    res = post_json("/update-ytdlp", {})
+    if res.get("status") == "success":
+        if res.get("updated"):
+            print(f"{GREEN}[✓] yt-dlp updated: {res.get('previous_version')} -> {res.get('version')}{RESET}")
+        else:
+            print(f"{GREEN}[✓] yt-dlp is already up to date ({res.get('version')}){RESET}")
+    elif res.get("status") == "skipped":
+        print(f"{YELLOW}[i] {res.get('message')} (version {res.get('version')}){RESET}")
+    else:
+        print(f"{RED}[!] Update error: {res.get('error')}{RESET}")
 
 def main():
     if len(sys.argv) > 1 and sys.argv[1] in [
         "media-download", "media-clip", "media-transcribe",
-        "media-ingest", "media-status", "media-shutdown", "media-api",
-        "download", "clip", "transcribe", "ingest", "status", "shutdown", "service"
+        "media-ingest", "media-status", "media-shutdown", "media-api", "media-update",
+        "download", "clip", "transcribe", "ingest", "status", "shutdown", "service", "update"
     ]:
         prog = sys.argv[1]
         args_to_parse = sys.argv[2:]
@@ -264,13 +289,19 @@ def main():
         cmd_shutdown(parser.parse_args(args_to_parse))
         return
 
+    if prog in ("media-update", "update"):
+        parser = argparse.ArgumentParser(description="Check for and install yt-dlp extractor updates")
+        parser.add_argument("--force", action="store_true", default=True, help="Force update check")
+        cmd_update(parser.parse_args(args_to_parse))
+        return
+
     if prog in ("media-api", "service"):
         parser = argparse.ArgumentParser(description="Manage Media API socket & service")
-        parser.add_argument("action", nargs="?", default="status", choices=["status", "start", "stop", "restart", "logs", "standby"], help="Action to perform")
+        parser.add_argument("action", nargs="?", default="status", choices=["status", "start", "stop", "restart", "logs", "standby", "update"], help="Action to perform")
         cmd_api(parser.parse_args(args_to_parse))
         return
 
-    print("Usage: media-download | media-clip | media-transcribe | media-ingest | media-status | media-shutdown | media-api")
+    print("Usage: media-download | media-clip | media-transcribe | media-ingest | media-status | media-shutdown | media-update | media-api")
 
 if __name__ == "__main__":
     main()
