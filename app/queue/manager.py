@@ -6,13 +6,18 @@ import threading
 import asyncio
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, Optional
-from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Callable, Dict, Optional
+from concurrent.futures import Future, ThreadPoolExecutor
 
 from app.config import settings
 from app.models.schemas import JobStatus, JobDetail
 
 logger = logging.getLogger("media_api")
+
+# Progress ticks arrive several times a second from the yt-dlp hook. The jobs
+# file lives on /mnt/d (DrvFs), so persisting every tick is both slow and
+# pointless: only status transitions have to survive a restart.
+SAVE_THROTTLE_SECONDS = 2.0
 
 class JobQueueManager:
     _instance = None
@@ -20,12 +25,24 @@ class JobQueueManager:
 
     def __init__(self):
         self.jobs: Dict[str, JobDetail] = {}
-        self.executor = ThreadPoolExecutor(max_workers=4)
+        # Single worker: GPU-bound pipelines (ingest, transcribe) run strictly
+        # one at a time, so a batch cannot fight itself for VRAM.
+        self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pipeline")
         self._lock = threading.Lock()
+        self._io_lock = threading.Lock()
         self._last_activity: float = time.time()
         self._active_pipelines: int = 0
+        self._last_save: float = 0.0
         self._storage_file: Path = settings.cache_dir / "media_jobs.json"
         self._load_jobs()
+
+    def submit_pipeline(self, fn: Callable[..., Any], *args: Any) -> Future:
+        """Queue a GPU-bound pipeline on the single background worker (FIFO)."""
+        return self.executor.submit(fn, *args)
+
+    def shutdown_executor(self):
+        """Drop queued pipelines so the process can exit promptly."""
+        self.executor.shutdown(wait=False, cancel_futures=True)
 
     @classmethod
     def get_instance(cls):
@@ -55,17 +72,30 @@ class JobQueueManager:
         except Exception as e:
             logger.warning(f"[queue] Failed to load jobs from {self._storage_file}: {e}")
 
-    def _save_jobs(self):
-        """Persist jobs atomically to disk."""
-        try:
-            settings.cache_dir.mkdir(parents=True, exist_ok=True)
-            tmp_file = self._storage_file.with_suffix(".tmp")
+    def _save_jobs(self, force: bool = False):
+        """
+        Persist jobs atomically to disk.
+
+        Throttled to one write per SAVE_THROTTLE_SECONDS unless forced, and the
+        file write happens outside self._lock so progress updates never block
+        status polling. Callers must NOT already hold self._lock.
+        """
+        now = time.time()
+        with self._lock:
+            if not force and (now - self._last_save) < SAVE_THROTTLE_SECONDS:
+                return
+            self._last_save = now
             data = [j.model_dump() for j in self.jobs.values()]
-            with open(tmp_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=1)
-            tmp_file.replace(self._storage_file)
-        except Exception as e:
-            logger.warning(f"[queue] Failed to persist jobs to {self._storage_file}: {e}")
+
+        with self._io_lock:
+            try:
+                settings.cache_dir.mkdir(parents=True, exist_ok=True)
+                tmp_file = self._storage_file.with_suffix(".tmp")
+                with open(tmp_file, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=1)
+                tmp_file.replace(self._storage_file)
+            except Exception as e:
+                logger.warning(f"[queue] Failed to persist jobs to {self._storage_file}: {e}")
 
     def pipeline_started(self):
         with self._lock:
@@ -115,22 +145,25 @@ class JobQueueManager:
         with self._lock:
             self.jobs[job_id] = job
             self._last_activity = time.time()
-            self._save_jobs()
+        self._save_jobs(force=True)
         return job_id
 
     def update_job(self, job_id: str, **kwargs):
+        status_changed = False
         with self._lock:
             if job_id in self.jobs:
                 job = self.jobs[job_id]
                 if job.status == JobStatus.CANCELLED:
                     return
+                status_changed = "status" in kwargs and kwargs["status"] != job.status
                 for k, v in kwargs.items():
                     if hasattr(job, k):
                         setattr(job, k, v)
                 job.updated_at = datetime.now().isoformat()
                 self._prune_old_jobs()
-                self._save_jobs()
             self._last_activity = time.time()
+        # Progress-only ticks are throttled; status transitions always persist.
+        self._save_jobs(force=status_changed)
 
     def _prune_old_jobs(self, max_history: int = 100):
         """Keep memory bounded by pruning old completed/failed jobs."""
@@ -142,6 +175,7 @@ class JobQueueManager:
 
     def cancel_job(self, job_id: str) -> bool:
         """Cancel a queued or running job."""
+        cancelled = False
         with self._lock:
             if job_id in self.jobs:
                 job = self.jobs[job_id]
@@ -150,9 +184,10 @@ class JobQueueManager:
                     job.error = "Job cancelled by user"
                     job.updated_at = datetime.now().isoformat()
                     self._last_activity = time.time()
-                    self._save_jobs()
-                    return True
-        return False
+                    cancelled = True
+        if cancelled:
+            self._save_jobs(force=True)
+        return cancelled
 
     def is_cancelled(self, job_id: str) -> bool:
         """Check if a job has been cancelled."""
@@ -168,8 +203,8 @@ class JobQueueManager:
             for k in to_remove:
                 self.jobs.pop(k, None)
             self._last_activity = time.time()
-            self._save_jobs()
-            return len(to_remove)
+        self._save_jobs(force=True)
+        return len(to_remove)
 
     def get_job(self, job_id: str) -> Optional[JobDetail]:
         with self._lock:

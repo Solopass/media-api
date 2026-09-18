@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from unittest import mock
 from pathlib import Path
@@ -35,22 +37,51 @@ def test_gpu_service_evaluation():
     assert fit_spec["verdict"] == "wont_fit"
     assert "Exceeds VRAM" in fit_spec["badge"]
 
+FAKE_VRAM = {
+    "adapter": "AMD Radeon RX 9070 XT",
+    "total_vram_gb": 15.9,
+    "used_vram_gb": 4.0,
+    "free_vram_gb": 11.9,
+    "other_apps_vram_gb": 4.0,
+    "room_for_model_gb": 11.9,
+    "loaded_models": []
+}
+
+
 def test_models_api_endpoint():
-    res = client.get("/api/v1/models")
+    """Ollama and the PowerShell VRAM counter are stubbed: no live host services."""
+    ollama_payload = json.dumps({
+        "models": [{"name": "sol-fast:latest", "size": int(12.4 * 1024**3)}]
+    }).encode("utf-8")
+
+    fake_resp = mock.MagicMock()
+    fake_resp.read.return_value = ollama_payload
+    fake_resp.__enter__.return_value = fake_resp
+    fake_resp.__exit__.return_value = False
+
+    with mock.patch.object(GpuService, "get_vram_usage", return_value=FAKE_VRAM),          mock.patch("app.main.urllib.request.urlopen", return_value=fake_resp):
+        res = client.get("/api/v1/models")
+
     assert res.status_code == 200
     data = res.json()
-    assert "models" in data
-    assert "model_details" in data
-    assert "default" in data
-    assert "gpu" in data
-    assert data["gpu"]["total_vram_gb"] > 0
+    assert data["models"] == ["sol-fast:latest"]
+    assert data["default"] == "sol-fast:latest"
+    assert data["gpu"]["total_vram_gb"] == 15.9
 
-    # Ensure details list contains expected fields
-    if data["model_details"]:
-        first = data["model_details"][0]
-        assert "vram_needed_gb" in first
-        assert "verdict" in first
-        assert "badge" in first
+    first = data["model_details"][0]
+    assert first["vram_needed_gb"] == 12.4
+    assert first["verdict"] == "tight"
+    assert "badge" in first
+
+
+def test_models_api_falls_back_when_ollama_is_down():
+    with mock.patch.object(GpuService, "get_vram_usage", return_value=FAKE_VRAM),          mock.patch("app.main.urllib.request.urlopen", side_effect=OSError("connection refused")):
+        res = client.get("/api/v1/models")
+
+    assert res.status_code == 200
+    data = res.json()
+    assert "sol-fast:latest" in data["models"]
+    assert len(data["model_details"]) == 4
 
 def test_update_note_summary_method(tmp_path):
     note_file = tmp_path / "test_note.md"

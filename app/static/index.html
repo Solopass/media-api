@@ -1303,6 +1303,14 @@
                     <span class="slider"></span>
                   </label>
                 </label>
+                <label class="switch-label" style="margin-top: 0.5rem;">
+                  <span>Keep Source Video</span>
+                  <label class="switch">
+                    <input type="checkbox" id="ingest-keep-video">
+                    <span class="slider"></span>
+                  </label>
+                </label>
+                <div class="hint" style="font-size: 0.73rem; color: var(--text-muted); margin-top: 0.25rem;">Off: the downloaded video is deleted after the note is written. Audio + transcript are always kept.</div>
               </div>
               <div class="form-group" id="group-llm-model">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
@@ -1917,6 +1925,12 @@
       ingestMode: "single",
       resolvedBatchItems: []
     };
+
+    // Off by default: the API deletes the downloaded video once the note exists.
+    function keepVideoVal() {
+      const el = document.getElementById("ingest-keep-video");
+      return !!(el && el.checked);
+    }
 
     function escapeHtml(str) {
       if (!str) return "";
@@ -2864,7 +2878,8 @@
               summary_preset: presetVal,
               summary_focus: focusVal,
               vault_subfolder: subfolderVal,
-              tags: tagsVal
+              tags: tagsVal,
+              keep_video: keepVideoVal()
             };
             const res = await fetch("/api/v1/ingest", {
               method: "POST",
@@ -2931,7 +2946,7 @@
       itemsList.innerHTML = items.map((item, i) => `
         <div class="batch-item" id="batch-url-item-${i}">
           <div style="display: flex; align-items: center; gap: 0.5rem; overflow: hidden; max-width: 60%;">
-            ${item.thumbnail ? `<img src="${item.thumbnail}" style="width: 28px; height: 18px; object-fit: cover; border-radius: 2px; flex-shrink: 0;" />` : '🎬'}
+            ${item.thumbnail ? `<img src="${escapeHtml(item.thumbnail)}" style="width: 28px; height: 18px; object-fit: cover; border-radius: 2px; flex-shrink: 0;" />` : '🎬'}
             <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(item.title || item.url)}">
               ${escapeHtml(item.title || item.url)}
             </span>
@@ -2997,7 +3012,8 @@
             summary_preset: presetVal,
             summary_focus: focusVal,
             vault_subfolder: subfolderVal,
-            tags: tagsVal
+            tags: tagsVal,
+            keep_video: keepVideoVal()
           };
 
           const res = await fetch("/api/v1/ingest", {
@@ -3030,7 +3046,7 @@
                 }
                 if (actionsEl && job.obsidian_uri) {
                   actionsEl.innerHTML = `
-                    <a href="${job.obsidian_uri}" class="btn-obsidian" style="font-size: 0.72rem; padding: 0.2rem 0.55rem; text-decoration: none;" title="Open Note in Obsidian" target="_blank">Open Note</a>
+                    <a href="${escapeHtml(job.obsidian_uri)}" class="btn-obsidian" style="font-size: 0.72rem; padding: 0.2rem 0.55rem; text-decoration: none;" title="Open Note in Obsidian" target="_blank">Open Note</a>
                   `;
                 }
                 resolve(job);
@@ -3042,7 +3058,7 @@
                 }
                 if (actionsEl && job.obsidian_uri) {
                   actionsEl.innerHTML = `
-                    <a href="${job.obsidian_uri}" class="btn-obsidian" style="font-size: 0.72rem; padding: 0.2rem 0.55rem; background: #ef4444; text-decoration: none;" title="View Error Report in Obsidian" target="_blank">Error Note</a>
+                    <a href="${escapeHtml(job.obsidian_uri)}" class="btn-obsidian" style="font-size: 0.72rem; padding: 0.2rem 0.55rem; background: #ef4444; text-decoration: none;" title="View Error Report in Obsidian" target="_blank">Error Note</a>
                   `;
                 }
                 resolve(job);
@@ -3400,7 +3416,7 @@
             batchPreviewItems.innerHTML = state.resolvedBatchItems.map((item, idx) => `
               <label class="batch-preview-row" style="cursor: pointer;">
                 <input type="checkbox" data-index="${idx}" checked style="accent-color: var(--primary); cursor: pointer;" />
-                ${item.thumbnail ? `<img src="${item.thumbnail}" style="width: 30px; height: 18px; object-fit: cover; border-radius: 2px; flex-shrink: 0;" />` : ''}
+                ${item.thumbnail ? `<img src="${escapeHtml(item.thumbnail)}" style="width: 30px; height: 18px; object-fit: cover; border-radius: 2px; flex-shrink: 0;" />` : ''}
                 <div style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                   <strong style="color: var(--text-main); font-size: 0.8rem;">${escapeHtml(item.title || item.url)}</strong>
                   ${item.uploader ? `<span style="color: var(--text-dim); font-size: 0.72rem; margin-left: 0.4rem;">${escapeHtml(item.uploader)}</span>` : ''}
@@ -3493,7 +3509,8 @@
         summary_preset: presetVal,
         summary_focus: focusVal,
         vault_subfolder: subfolderVal,
-        tags: tagsVal
+        tags: tagsVal,
+        keep_video: keepVideoVal()
       };
 
       btn.disabled = true;
@@ -4026,7 +4043,7 @@
               <td>${tagsHtml}</td>
               <td style="white-space: nowrap;">
                 <div style="display: flex; gap: 0.35rem; align-items: center;">
-                  <a class="btn-obsidian" href="${n.obsidian_uri}" target="_blank" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;" title="Open in Obsidian Desktop">Open</a>
+                  <a class="btn-obsidian" href="${escapeHtml(n.obsidian_uri)}" target="_blank" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;" title="Open in Obsidian Desktop">Open</a>
                   <button type="button" class="btn-sm" onclick="previewVaultNote('${encodeURIComponent(n.file_path)}')" title="Preview markdown note">Preview</button>
                 </div>
               </td>

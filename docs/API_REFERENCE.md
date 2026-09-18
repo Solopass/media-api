@@ -60,9 +60,16 @@ One-shot ingestion pipeline:
   "summary_preset": "executive",
   "summary_focus": "key architectural decisions and performance metrics",
   "vault_subfolder": "Transcripts/Meetings",
-  "tags": ["architecture", "review"]
+  "tags": ["architecture", "review"],
+  "keep_video": false
 }
 ```
+**Source Video Retention** (`keep_video`, default `false`):
+- `false`: once the vault note is written, the downloaded video in `D:\Output\Videos` (and any clipped intermediate) is deleted.
+- `true`: the video is kept.
+- The extracted audio and `.transcript.json` sidecar are **always** kept — the UI audio player streams them back.
+- Files outside the API's own output directories (`D:\Output\Videos`, `D:\Output\Audio`, `D:\AI\Cache\uploads`) are never deleted, so a local path you point the API at stays untouched regardless of this setting.
+
 **Summary Presets**:
 - `executive`: Core Briefing, Key Themes & Decisions, Deliverables & Actionable Takeaways.
 - `meeting`: Attendees, Agenda Topics, Decisions Reached, Action Item Ownership Table (`| Owner | Action Item | Target |`).
@@ -117,6 +124,8 @@ Fast flat extraction of a YouTube playlist, channel, or video URL into individua
   "max_items": 50
 }
 ```
+`max_items` accepts 1-500 (default 50); out-of-range values return `422`.
+
 **Response**:
 ```json
 {

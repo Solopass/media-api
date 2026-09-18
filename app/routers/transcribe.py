@@ -1,7 +1,7 @@
 import json
 import os
 from pathlib import Path
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, HTTPException
 from datetime import datetime
 
 from app.models.schemas import TranscribeRequest, JobResponse, JobStatus
@@ -112,13 +112,13 @@ def run_transcribe_task(job_id: str, req: TranscribeRequest):
         job_manager.pipeline_ended()
 
 @router.post("/transcribe", response_model=JobResponse)
-def transcribe_media(req: TranscribeRequest, background_tasks: BackgroundTasks):
+def transcribe_media(req: TranscribeRequest):
     try:
         engine = stt_service.resolve_engine(req.engine, req.language)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     job_id = job_manager.create_job("transcribe", req.source)
-    background_tasks.add_task(run_transcribe_task, job_id, req)
+    job_manager.submit_pipeline(run_transcribe_task, job_id, req)
     label = f"whisper {req.model_size}" if engine == "whisper" else engine
     return JobResponse(
         job_id=job_id,

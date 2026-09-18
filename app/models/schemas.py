@@ -50,6 +50,7 @@ class IngestRequest(BaseModel):
     summary_focus: Optional[str] = Field(default=None, description="Optional custom user focus instructions")
     vault_subfolder: str = Field(default="Transcripts", description="Subfolder path inside D:\\AI\\Vault")
     tags: list[str] = Field(default_factory=list, description="Custom tags for Obsidian YAML frontmatter")
+    keep_video: bool = Field(default=False, description="Keep the downloaded source video after transcription (default: delete it; extracted audio and transcript are always kept)")
     priority: str = Field(default="normal", description="Queue priority")
 
 class ConfigIdleRequest(BaseModel):
@@ -116,7 +117,7 @@ class PlaylistItem(BaseModel):
 
 class PlaylistExpandRequest(BaseModel):
     url: str = Field(..., description="YouTube playlist, channel, or video URL")
-    max_items: int = Field(default=50, description="Maximum number of items to extract")
+    max_items: int = Field(default=50, ge=1, le=500, description="Maximum number of items to extract")
 
 class PlaylistExpandResponse(BaseModel):
     title: str

@@ -66,6 +66,7 @@ async def lifespan(app: FastAPI):
     updater_task = asyncio.create_task(UpdaterService.background_auto_update())
     yield
     # Graceful Shutdown
+    job_manager.shutdown_executor()
     watchdog_task.cancel()
     updater_task.cancel()
     try:

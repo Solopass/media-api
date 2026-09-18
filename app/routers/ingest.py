@@ -3,10 +3,12 @@ import os
 import re
 import shutil
 import logging
+import subprocess
+import threading
 import traceback
 import urllib.parse
 from pathlib import Path
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, HTTPException
 from datetime import datetime
 
 from app.models.schemas import (
@@ -23,6 +25,70 @@ from app.config import settings, normalize_path
 logger = logging.getLogger("media_api")
 
 router = APIRouter(prefix="/api/v1", tags=["Full Ingestion Pipeline"])
+
+# Only files this API produced may be auto-deleted; a local path the user
+# pointed us at is never touched.
+MANAGED_MEDIA_DIRS = (settings.output_videos, settings.output_audio, settings.uploads_dir)
+
+
+def _is_managed_media(path: Path) -> bool:
+    """True when path sits inside a directory this API writes into."""
+    try:
+        resolved = path.resolve()
+    except Exception:
+        return False
+    for managed in MANAGED_MEDIA_DIRS:
+        try:
+            resolved.relative_to(managed.resolve())
+            return True
+        except ValueError:
+            continue
+    return False
+
+
+def _discard_source_video(candidates: list[Path], keep: Path) -> tuple[list[str], float]:
+    """
+    Delete the (large) source video once the transcript exists.
+
+    The extracted audio and transcript sidecar are kept: the UI player streams
+    them back. Returns the paths actually removed and the MB reclaimed.
+    """
+    removed = []
+    freed_mb = 0.0
+    seen = set()
+    for path in candidates:
+        if not path or path == keep or str(path) in seen:
+            continue
+        seen.add(str(path))
+        if not _is_managed_media(path):
+            logger.info(f"[ingest] Keeping {path} (outside managed output dirs)")
+            continue
+        try:
+            if path.exists():
+                size_mb = path.stat().st_size / (1024 * 1024)
+                path.unlink()
+                removed.append(str(path))
+                freed_mb += size_mb
+                logger.info(f"[ingest] Removed source video {path.name} ({size_mb:.1f} MB)")
+        except Exception as e:
+            logger.warning(f"[ingest] Could not remove source video {path}: {e}")
+    return removed, round(freed_mb, 1)
+
+
+def _trigger_reindex():
+    """Fire the vector re-index and reap the child so it cannot linger as a zombie."""
+    def _run():
+        try:
+            subprocess.run(
+                ["find-concept", "--reindex"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=300
+            )
+        except Exception as e:
+            logger.debug(f"[ingest] Vector re-index skipped: {e}")
+
+    threading.Thread(target=_run, name="reindex", daemon=True).start()
 
 def run_ingest_pipeline(job_id: str, req: IngestRequest):
     if job_manager.is_cancelled(job_id):
@@ -163,19 +229,25 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
             summary_focus=req.summary_focus
         )
 
-        # Step 6: Trigger Semantic Vector Re-Index (Non-blocking)
-        try:
-            import subprocess
-            subprocess.Popen(["find-concept", "--reindex"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except Exception:
-            pass
+        # Step 6: Discard the source video unless the user asked to keep it
+        removed_media, freed_mb = [], 0.0
+        if not req.keep_video:
+            candidates = [current_media]
+            for key in ("video", "clipped"):
+                if partial_files.get(key):
+                    candidates.append(Path(partial_files[key]))
+            removed_media, freed_mb = _discard_source_video(candidates, keep=audio_path)
+
+        # Step 7: Trigger Semantic Vector Re-Index (Non-blocking)
+        _trigger_reindex()
 
         encoded_note = urllib.parse.quote(f"Agent/{clean_sub}/{vault_note.name}")
         out_files = {
-            "media": str(current_media),
             "audio": str(audio_path),
             "vault_note": str(vault_note)
         }
+        if current_media.exists():
+            out_files["media"] = str(current_media)
         if out_json and Path(out_json).exists():
             out_files["transcript_json"] = str(out_json)
 
@@ -183,7 +255,10 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
             job_id,
             status=JobStatus.COMPLETED,
             progress_percent=100.0,
-            speed="Completed successfully",
+            speed=(
+                f"Completed successfully (source video deleted, {freed_mb:.0f} MB freed)"
+                if removed_media else "Completed successfully"
+            ),
             obsidian_link=f"[[Agent/{clean_sub}/{vault_note.stem}]]",
             obsidian_uri=f"obsidian://open?vault={settings.vault_name}&file={encoded_note}",
             output_files=out_files
@@ -224,13 +299,14 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
         job_manager.pipeline_ended()
 
 @router.post("/ingest", response_model=JobResponse)
-def ingest_media(req: IngestRequest, background_tasks: BackgroundTasks):
+def ingest_media(req: IngestRequest):
     try:
         stt_service.resolve_engine(req.engine, None)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     job_id = job_manager.create_job("ingest", req.source)
-    background_tasks.add_task(run_ingest_pipeline, job_id, req)
+    # Queued on the single pipeline worker: one GPU job at a time, in order.
+    job_manager.submit_pipeline(run_ingest_pipeline, job_id, req)
     return JobResponse(
         job_id=job_id,
         status=JobStatus.QUEUED,

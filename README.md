@@ -16,6 +16,7 @@
   - `technical`: Architectural & System Overview, APIs/Schemas, Technical Trade-offs, Implementation Notes.
   - `bullets`: Dense, high-signal bulleted takeaways with bold lead-ins.
 - **Topical Focus Guidance**: Inject custom user instructions into the local LLM prompt (`summary_focus`).
+- **Automatic Source Video Cleanup**: The downloaded video is deleted once the vault note is written, so `D:\Output\Videos` does not grow unbounded. Flip **Keep Source Video** in the UI (or `"keep_video": true`) to retain it. Extracted audio and the `.transcript.json` sidecar are always kept for the in-app player, and files outside the API's own output directories are never deleted.
 - **Obsidian Second Brain Integration**: Automatically creates formatted notes in `D:\AI\Vault\Transcripts/` with YAML frontmatter, summary callouts (`> [!abstract]`), timestamped transcript tables, deep-links (`obsidian://open?...`), and non-blocking semantic vector re-indexing (`find-concept --reindex`).
 
 ### 2. Audio Engineering & Interactive Playback
@@ -29,7 +30,7 @@
 - **Mode Switcher**: Easily toggle between single-target ingestion and multi-URL batch mode.
 - **YouTube Playlist & Channel Auto-Expansion**: Sub-second flat metadata extraction resolves playlists or channels into individual video items without downloading media upfront.
 - **Interactive Pre-flight Checklist**: Review video thumbnails, titles, and durations before launching, with selective checkbox toggles and "Select / Deselect All" helpers.
-- **Sequential Pipeline Queue**: Ingests media items one-by-one to preserve 100% smooth host gaming and prevent local LLM / Ollama GPU memory collisions.
+- **Sequential Pipeline Queue**: Ingest and transcription jobs run on a single server-side worker thread, one at a time, so a batch (or a second browser tab) cannot cause local LLM / Ollama GPU memory collisions. Host gaming stays smooth.
 - **Per-Item Obsidian Deep-Links**: Live progress indicators update in real time; each finished item row immediately provides an **Open Note** button and wikilink badge (`[[Transcripts/...]]`).
 
 ### 4. GPU VRAM & Memory Footprint Awareness
@@ -50,7 +51,8 @@
 
 - **Host P-Core Protection**: Background workers are pinned to E-cores 8–15 (`taskset -c 8-15 nice -n 10`), leaving P-cores 0–7 100% free for host Windows responsiveness.
 - **Zero-Leak Storage Policy**: All writes stay strictly on `D:\` (`D:\Output`, `D:\AI\Cache`, `D:\AI\Vault`). The Windows `C:\` drive is never touched.
-- **On-Demand Socket Activation**: Managed by systemd (`media-api.socket` on port 8080). Consumes **0 MB RAM and 0% CPU** on standby; wakes in <1s on the first HTTP request.
+- **On-Demand Socket Activation**: Managed by systemd (`media-api.socket` on `127.0.0.1:8080`). Consumes **0 MB RAM and 0% CPU** on standby; wakes in <1s on the first HTTP request.
+- **Loopback-Only Binding**: Both socket activation and direct `./run.sh` invocation bind `127.0.0.1` only, so the API is never exposed to the network. To reach it from another machine deliberately, run `MEDIA_API_BIND_HOST=0.0.0.0 ./run.sh` (there is no authentication, so only do this on a trusted network).
 - **Zero-Touch Isolation**: `sol-hud` remains completely untouched.
 
 ---
