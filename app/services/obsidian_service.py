@@ -1,12 +1,16 @@
 import os
 import time
 import json
+import logging
 import urllib.request
+import urllib.error
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
 from app.config import settings
+
+logger = logging.getLogger("media_api.obsidian")
 
 PRESET_INSTRUCTIONS = {
     "executive": (
@@ -115,8 +119,14 @@ def summarize_with_ollama(
             return "*(Ollama returned empty summary)*"
     except Exception as e:
         elapsed = time.time() - t0
-        logger.warning(f"[summarize] Ollama summary failed after {elapsed:.1f}s via {model_name}: {e}")
-        return f"*(Automatic LLM summary unavailable: {e})*"
+        err_msg = str(e)
+        if isinstance(e, urllib.error.HTTPError):
+            try:
+                err_msg = f"{e} - {e.read().decode('utf-8', errors='replace')}"
+            except Exception:
+                pass
+        logger.warning(f"[summarize] Ollama summary failed after {elapsed:.1f}s via {model_name}: {err_msg}")
+        return f"*(Automatic LLM summary unavailable: {err_msg})*"
 
 class ObsidianService:
     @staticmethod
