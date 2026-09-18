@@ -861,6 +861,10 @@
     .pill.running { background: rgba(6, 182, 212, 0.15); color: #38bdf8; border: 1px solid rgba(6, 182, 212, 0.3); }
     .pill.queued { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
     .pill.failed { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .pill.vram-fits { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); text-transform: none; }
+    .pill.vram-tight { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); text-transform: none; }
+    .pill.vram-wont_fit { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); text-transform: none; }
+
 
     /* Toast notification */
     #toast {
@@ -1199,12 +1203,14 @@
                 </label>
               </div>
               <div class="form-group" id="group-llm-model">
-                <label for="ingest-llm-model">Ollama Worker Model</label>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                  <label for="ingest-llm-model" style="margin-bottom: 0;">Ollama Worker Model</label>
+                  <span id="model-vram-badge" class="pill" style="font-size: 0.72rem; padding: 0.15rem 0.5rem; text-transform: none; letter-spacing: normal; font-family: system-ui, sans-serif; font-weight: 500;">Detecting VRAM...</span>
+                </div>
                 <select id="ingest-llm-model">
-                  <option value="sol-fast" selected>sol-fast (gpt-oss:20b, 65k ctx, 120 tok/s)</option>
-                  <option value="sol-specialist">sol-specialist (qwen3.8:27b)</option>
-                  <option value="sol-coder">sol-coder (qwen3-coder:30b)</option>
+                  <option value="sol-fast" selected>sol-fast (gpt-oss:20b)</option>
                 </select>
+                <div id="model-vram-hint" style="font-size: 0.73rem; color: var(--text-muted); margin-top: 0.25rem;">Checking GPU headroom...</div>
               </div>
             </div>
 
@@ -1320,6 +1326,10 @@
                 <button type="button" class="btn-header-action" id="btn-copy-note-markdown" title="Copy full markdown content">
                   <svg class="icon" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                   Copy Note
+                </button>
+                <button type="button" class="btn-header-action" id="btn-resummarize" title="Re-run or generate AI summary for this note with selected model">
+                  <svg class="icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                  Re-Summarize
                 </button>
               </div>
 
@@ -1952,20 +1962,58 @@
       });
     }
 
-    // Fetch Ollama Models
+    // Fetch Ollama Models & VRAM Headroom
     async function fetchModels() {
       try {
         const res = await fetch("/api/v1/models");
         if (res.ok) {
           const data = await res.json();
           const select = document.getElementById("ingest-llm-model");
-          if (data.models && data.models.length > 0) {
+          const vramBadge = document.getElementById("model-vram-badge");
+          const vramHint = document.getElementById("model-vram-hint");
+          state.modelDetails = {};
+
+          if (data.model_details && data.model_details.length > 0) {
+            select.innerHTML = "";
+            data.model_details.forEach(m => {
+              state.modelDetails[m.name] = m;
+              const opt = document.createElement("option");
+              opt.value = m.name;
+
+              let tag = "";
+              if (m.name.startsWith("sol-fast")) tag = " (Default 120 tok/s)";
+              else if (m.name.startsWith("sol-vision")) tag = " (Lightweight 60 tok/s)";
+              else if (m.name.startsWith("sol-specialist")) tag = " (Heavy 27B)";
+              else if (m.name.startsWith("sol-coder")) tag = " (30B Coder)";
+
+              opt.textContent = `${m.name}${tag} — ~${m.vram_needed_gb} GB`;
+              if (m.name === data.default || m.name.startsWith(data.default)) {
+                opt.selected = true;
+              }
+              select.appendChild(opt);
+            });
+
+            function updateVramUI(selectedName) {
+              const info = state.modelDetails[selectedName];
+              if (!info) return;
+              if (vramBadge) {
+                vramBadge.className = `pill vram-${info.verdict}`;
+                vramBadge.textContent = info.short_label;
+              }
+              if (vramHint) {
+                vramHint.textContent = info.note;
+              }
+            }
+
+            select.onchange = (e) => updateVramUI(e.target.value);
+            updateVramUI(select.value);
+          } else if (data.models && data.models.length > 0) {
             select.innerHTML = "";
             data.models.forEach(m => {
               const opt = document.createElement("option");
               opt.value = m;
-              opt.textContent = m === "sol-fast" ? `${m} (fast worker default)` : m;
-              if (m === "sol-fast") opt.selected = true;
+              opt.textContent = m;
+              if (m === data.default || m.startsWith(data.default)) opt.selected = true;
               select.appendChild(opt);
             });
           }
@@ -2899,6 +2947,44 @@
         if (closePreviewBtn) {
           closePreviewBtn.onclick = () => {
             document.getElementById("ingest-note-preview-drawer").style.display = "none";
+          };
+        }
+
+        const resummarizeBtn = document.getElementById("btn-resummarize");
+        if (resummarizeBtn) {
+          resummarizeBtn.onclick = async () => {
+            const selectedModel = document.getElementById("ingest-llm-model").value;
+            const selectedPreset = document.getElementById("ingest-summary-preset") ? document.getElementById("ingest-summary-preset").value : "executive";
+            const selectedFocus = document.getElementById("ingest-summary-focus") ? document.getElementById("ingest-summary-focus").value.trim() : null;
+
+            resummarizeBtn.disabled = true;
+            resummarizeBtn.textContent = "Summarizing...";
+            showToast(`Generating summary via ${selectedModel}...`, 5000);
+
+            try {
+              const res = await fetch("/api/v1/vault/resummarize", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  note_path: vaultNotePath,
+                  llm_model: selectedModel,
+                  summary_preset: selectedPreset,
+                  summary_focus: selectedFocus
+                })
+              });
+              const rdata = await res.json();
+              if (res.ok && rdata.success) {
+                showToast("Summary updated in note!");
+                loadNoteDetails(vaultNotePath);
+              } else {
+                showToast(`Summary failed: ${rdata.detail || rdata.summary || "Error"}`);
+              }
+            } catch (e) {
+              showToast(`Resummarize error: ${e.message}`);
+            } finally {
+              resummarizeBtn.disabled = false;
+              resummarizeBtn.textContent = "Re-Summarize";
+            }
           };
         }
 

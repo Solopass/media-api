@@ -32,6 +32,12 @@ class Settings(BaseModel):
     ollama_api_url: str = "http://127.0.0.1:11434/api/chat"
     default_llm_model: str = "sol-fast"
     default_whisper_model: str = "tiny"  # tiny/base/small/medium
+    ollama_timeout_seconds: int = int(os.getenv("MEDIA_API_OLLAMA_TIMEOUT", "300"))
+    ollama_max_chars: int = int(os.getenv("MEDIA_API_OLLAMA_MAX_CHARS", "24000"))
+
+    # Workstation Hardware & VRAM Awareness
+    gpu_name: str = os.getenv("MEDIA_API_GPU_NAME", "AMD Radeon RX 9070 XT")
+    gpu_total_vram_gb: float = float(os.getenv("MEDIA_API_GPU_VRAM_GB", "15.9"))
 
     # Speech-to-text engine: "parakeet" (default, most accurate in D:\OBVLT\reports\stt-bench.md) or "whisper".
     # parakeet-cli is a Windows binary run through WSL interop, so run.sh's E-core pinning does not apply to it;

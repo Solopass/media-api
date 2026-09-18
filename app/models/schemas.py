@@ -92,3 +92,17 @@ class ShutdownResponse(BaseModel):
     message: str
     active_jobs: int
     scheduled: bool
+
+class ResummarizeRequest(BaseModel):
+    note_path: str
+    llm_model: str = "sol-fast"
+    summary_preset: str = "executive"
+    summary_focus: Optional[str] = None
+
+class ResummarizeResponse(BaseModel):
+    success: bool
+    note_path: str
+    summary: str
+    model: str
+    preset: str
+

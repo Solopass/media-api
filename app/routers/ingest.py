@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from datetime import datetime
 
-from app.models.schemas import IngestRequest, JobResponse, JobStatus
+from app.models.schemas import IngestRequest, JobResponse, JobStatus, ResummarizeRequest, ResummarizeResponse
 from app.queue.manager import job_manager
 from app.services.ytdlp_service import YtDlpService
 from app.services.ffmpeg_service import FFmpegService
@@ -234,3 +234,77 @@ def ingest_media(req: IngestRequest, background_tasks: BackgroundTasks):
         message="One-shot media ingestion pipeline queued",
         created_at=datetime.now().isoformat()
     )
+
+@router.post("/vault/resummarize", response_model=ResummarizeResponse)
+def resummarize_note(req: ResummarizeRequest):
+    """Regenerate an AI summary for an existing transcript note without re-transcribing."""
+    raw_path = req.note_path.strip()
+    target_file = normalize_path(raw_path)
+
+    # If relative or filename only, search in vault_transcripts and output_transcripts
+    if not target_file.exists():
+        candidate = settings.vault_transcripts / raw_path
+        if candidate.exists():
+            target_file = candidate
+        else:
+            candidate2 = settings.output_transcripts / raw_path
+            if candidate2.exists():
+                target_file = candidate2
+            else:
+                raise HTTPException(status_code=404, detail=f"Note file not found: {raw_path}")
+
+    content = target_file.read_text(encoding="utf-8")
+
+    # Extract title
+    title_match = re.search(r"^title:\s*\"?(.*?)\"?$", content, re.MULTILINE)
+    title = title_match.group(1) if title_match else target_file.stem
+
+    # Extract text from corresponding transcript json or markdown table
+    transcript_text = ""
+    source_match = re.search(r"- \*\*Source Media\*\*:\s*`([^`]+)`", content)
+    if source_match:
+        media_p = Path(source_match.group(1))
+        stem = media_p.stem
+        for p in [settings.output_audio, settings.output_transcripts, settings.output_videos]:
+            json_cand = p / f"{stem}.transcript.json"
+            if json_cand.exists():
+                try:
+                    j_data = json.loads(json_cand.read_text(encoding="utf-8"))
+                    transcript_text = j_data.get("full_text") or ""
+                    if transcript_text:
+                        break
+                except Exception:
+                    pass
+
+    # Fallback: extract from markdown table
+    if not transcript_text:
+        table_lines = re.findall(r"\|\s*`\d+:\d+`\s*\|\s*(.*?)\s*\|", content)
+        if table_lines:
+            transcript_text = " ".join(table_lines)
+
+    if not transcript_text:
+        raise HTTPException(status_code=400, detail="Could not extract transcript text from note or associated transcript JSON")
+
+    summary = summarize_with_ollama(
+        title=title,
+        text=transcript_text,
+        model_name=req.llm_model,
+        preset=req.summary_preset,
+        focus=req.summary_focus
+    )
+
+    success = ObsidianService.update_note_summary(
+        note_path=target_file,
+        new_summary=summary,
+        summary_preset=req.summary_preset,
+        summary_focus=req.summary_focus
+    )
+
+    return ResummarizeResponse(
+        success=success,
+        note_path=str(target_file),
+        summary=summary,
+        model=req.llm_model,
+        preset=req.summary_preset
+    )
+

@@ -70,7 +70,7 @@ def test_models_endpoint():
     data = response.json()
     assert "models" in data
     assert "default" in data
-    assert data["default"] == "sol-fast"
+    assert data["default"].startswith("sol-fast")
 
 def test_ui_endpoint():
     response = client.get("/ui")

@@ -59,7 +59,16 @@ def summarize_with_ollama(
     system_instruction = PRESET_INSTRUCTIONS.get(preset, PRESET_INSTRUCTIONS["executive"])
     focus_directive = f"\n\nSpecial User Focus Directive: Prioritize and thoroughly detail any discussion or facts regarding: '{focus.strip()}'." if focus and focus.strip() else ""
 
-    user_prompt = f"Title: {title}\n\nTranscript:\n{text[:45000]}{focus_directive}\n\nSummary:"
+    # Smart prompt truncation: stay comfortably within the 8,192 context limit
+    max_chars = settings.ollama_max_chars
+    if len(text) > max_chars:
+        head_len = int(max_chars * 0.65)
+        tail_len = max_chars - head_len
+        condensed_text = f"{text[:head_len]}\n\n[... middle section condensed for context limit ...]\n\n{text[-tail_len:]}"
+    else:
+        condensed_text = text
+
+    user_prompt = f"Title: {title}\n\nTranscript:\n{condensed_text}{focus_directive}\n\nSummary:"
     req_data = json.dumps({
         "model": model_name,
         "messages": [
@@ -68,6 +77,8 @@ def summarize_with_ollama(
         ],
         "stream": False,
         "options": {
+            "num_ctx": 8192,
+            "temperature": 0.3,
             "seed": 7
         }
     }).encode("utf-8")
@@ -77,14 +88,33 @@ def summarize_with_ollama(
         data=req_data,
         headers={"Content-Type": "application/json"}
     )
+    t0 = time.time()
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
+        with urllib.request.urlopen(req, timeout=settings.ollama_timeout_seconds) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-            msg = data.get("message", {}).get("content")
-            if msg:
-                return msg.strip()
-            return data.get("response", "").strip()
+            elapsed = time.time() - t0
+            msg = data.get("message", {})
+            content = msg.get("content") or data.get("response", "")
+            
+            # Strip internal <think> tags if present in raw content
+            if content:
+                import re
+                content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+
+            prompt_eval_s = data.get("prompt_eval_duration", 0) / 1e9
+            eval_s = data.get("eval_duration", 0) / 1e9
+            eval_tokens = data.get("eval_count", 0)
+            logger.info(
+                f"[summarize] Summary generated via {model_name} in {elapsed:.1f}s "
+                f"(prompt: {prompt_eval_s:.1f}s, gen: {eval_s:.1f}s, tokens: {eval_tokens})"
+            )
+
+            if content:
+                return content
+            return "*(Ollama returned empty summary)*"
     except Exception as e:
+        elapsed = time.time() - t0
+        logger.warning(f"[summarize] Ollama summary failed after {elapsed:.1f}s via {model_name}: {e}")
         return f"*(Automatic LLM summary unavailable: {e})*"
 
 class ObsidianService:
@@ -307,3 +337,42 @@ class ObsidianService:
                 pass
 
         return vault_file
+
+    @staticmethod
+    def update_note_summary(
+        note_path: Path,
+        new_summary: str,
+        summary_preset: str = "executive",
+        summary_focus: Optional[str] = None
+    ) -> bool:
+        """Update or replace the abstract callout in an existing transcript note."""
+        import re
+        if not note_path.exists():
+            return False
+
+        content = note_path.read_text(encoding="utf-8")
+        callout_title = PRESET_TITLES.get(summary_preset, "Executive AI Summary")
+        focus_notice = f"> *(User focus: {summary_focus.strip()})*\n> \n" if summary_focus and summary_focus.strip() else ""
+        new_block = f"> [!abstract] **{callout_title}**\n{focus_notice}> " + new_summary.replace("\n", "\n> ")
+
+        # Match from > [!abstract] until the next markdown header or divider
+        pattern = r"> \[!abstract\].*?(?=\n\n---|\n\n##|\Z)"
+        if re.search(pattern, content, flags=re.DOTALL):
+            updated_content = re.sub(pattern, new_block, content, count=1, flags=re.DOTALL)
+        else:
+            # If no callout found, insert below the title header
+            title_pat = r"(# 🎙️ .*\n)"
+            if re.search(title_pat, content):
+                updated_content = re.sub(title_pat, r"\1\n" + new_block + "\n", content, count=1)
+            else:
+                updated_content = new_block + "\n\n" + content
+
+        note_path.write_text(updated_content, encoding="utf-8")
+
+        # Also update mirror file in settings.output_transcripts if present
+        mirror_file = settings.output_transcripts / note_path.name
+        if mirror_file.exists():
+            mirror_file.write_text(updated_content, encoding="utf-8")
+
+        return True
+

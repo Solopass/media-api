@@ -19,6 +19,7 @@ from app.queue.manager import job_manager
 from app.models.schemas import ShutdownRequest, ShutdownResponse, ConfigIdleRequest
 from app.routers import media, transcribe, ingest, jobs, upload
 from app.services.updater_service import UpdaterService
+from app.services.gpu_service import GpuService
 
 logging.basicConfig(
     level=logging.INFO,
@@ -133,15 +134,45 @@ def health_check():
 
 @app.get("/api/v1/models", tags=["Local LLM"])
 def list_local_models():
-    """Fetch currently installed Ollama models for the UI dropdown."""
+    """Fetch currently installed Ollama models with VRAM fit evaluation for the UI dropdown."""
+    gpu_stats = GpuService.get_vram_usage()
+    model_details = []
+    model_names = []
+    
     try:
         req = urllib.request.Request("http://127.0.0.1:11434/api/tags", headers={"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=4) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-            models = [m["name"] for m in data.get("models", [])]
-            return {"models": models, "default": settings.default_llm_model}
-    except Exception:
-        return {"models": ["sol-fast", "sol-specialist", "sol-coder", "sol-vision"], "default": settings.default_llm_model}
+            for m in data.get("models", []):
+                name = m.get("name")
+                size = m.get("size", 0)
+                eval_res = GpuService.evaluate_model_fit(name, size, gpu_stats)
+                model_names.append(name)
+                model_details.append({
+                    "name": name,
+                    "size_gb": round(size / (1024**3), 1) if size else 0,
+                    **eval_res
+                })
+    except Exception as e:
+        logger.warning(f"Failed to query Ollama tags: {e}")
+        fallback_names = ["sol-fast:latest", "sol-vision:latest", "sol-specialist:latest", "sol-coder:latest"]
+        for name in fallback_names:
+            model_names.append(name)
+            model_details.append({
+                "name": name,
+                "size_gb": 12.4,
+                **GpuService.evaluate_model_fit(name, None, gpu_stats)
+            })
+
+    def_name = settings.default_llm_model
+    matched_default = next((n for n in model_names if n == def_name or n.startswith(f"{def_name}:")), def_name)
+
+    return {
+        "models": model_names,
+        "model_details": model_details,
+        "default": matched_default,
+        "gpu": gpu_stats
+    }
 
 @app.post("/api/v1/shutdown", response_model=ShutdownResponse, tags=["Lifecycle"])
 async def shutdown_server(req: ShutdownRequest = ShutdownRequest()):
