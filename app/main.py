@@ -17,7 +17,7 @@ from starlette.staticfiles import StaticFiles
 from app.config import settings
 from app.queue.manager import job_manager
 from app.models.schemas import ShutdownRequest, ShutdownResponse, ConfigIdleRequest
-from app.routers import media, transcribe, ingest, jobs, upload
+from app.routers import media, transcribe, ingest, jobs, upload, storage
 from app.services.updater_service import UpdaterService
 from app.services.gpu_service import GpuService
 
@@ -102,6 +102,7 @@ app.include_router(transcribe.router)
 app.include_router(ingest.router)
 app.include_router(jobs.router)
 app.include_router(upload.router)
+app.include_router(storage.router)
 
 static_dir = settings.workspace_dir / "app" / "static"
 static_dir.mkdir(parents=True, exist_ok=True)
@@ -236,7 +237,8 @@ def root(request: Request):
             "/api/v1/status/{id}",
             "/api/v1/jobs",
             "/api/v1/shutdown",
-            "/api/v1/models"
+            "/api/v1/models",
+            "/api/v1/storage"
         ]
     }
 

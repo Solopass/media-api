@@ -137,7 +137,7 @@ def test_run_ingest_pipeline_generates_sidecar_and_obsidian_uri(tmp_path):
 
     with mock.patch("app.routers.ingest.stt_service.transcribe", return_value=fake_res), \
          mock.patch("app.routers.ingest.ObsidianService.create_transcript_note", return_value=fake_note), \
-         mock.patch("subprocess.Popen"):
+         mock.patch("app.routers.ingest._trigger_reindex"):
         run_ingest_pipeline(job_id, req)
 
     job = job_manager.get_job(job_id)
@@ -180,7 +180,7 @@ def test_run_ingest_pipeline_with_custom_subfolder_and_tags(tmp_path):
 
     with mock.patch("app.routers.ingest.stt_service.transcribe", return_value=fake_res), \
          mock.patch("app.routers.ingest.ObsidianService.create_transcript_note", return_value=fake_note) as mock_create, \
-         mock.patch("subprocess.Popen"):
+         mock.patch("app.routers.ingest._trigger_reindex"):
         run_ingest_pipeline(job_id, req)
 
     job = job_manager.get_job(job_id)

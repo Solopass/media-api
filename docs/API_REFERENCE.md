@@ -163,7 +163,50 @@ The target must resolve inside the Obsidian vault roots (`D:\AI\Vault`, `D:\OBVL
 
 Replaces the `> [!abstract]` callout in-place while preserving YAML frontmatter, headers, and timestamped transcripts.
 
-### 7. `GET /api/v1/models` (GPU VRAM & Model Headroom)
+### 7. `GET /api/v1/storage` & `POST /api/v1/storage/reclaim`
+Per-category accounting of the API's own output directories, plus age-based cleanup.
+
+`GET /api/v1/storage` (add `?refresh=true` to bypass the 30s scan cache):
+```json
+{
+  "drive": { "path": "/mnt/d", "total_gb": 1863.02, "used_gb": 287.48, "free_gb": 1575.53 },
+  "categories": [
+    {
+      "name": "audio",
+      "label": "Extracted Audio",
+      "windows_directory": "D:\\Output\\Audio",
+      "file_count": 2,
+      "total_bytes": 68063683,
+      "total_mb": 64.9,
+      "oldest_modified": "2026-09-18T16:57:40",
+      "reclaimable": true
+    }
+  ],
+  "reclaimable_by_age": { "7": {...}, "30": {...}, "90": {...} },
+  "scanned_at": "2026-09-19T03:22:10"
+}
+```
+Categories: `videos`, `audio`, `uploads` (reclaimable) and `sidecars`, `note_mirrors`
+(reported only, never deleted).
+
+`POST /api/v1/storage/reclaim`:
+```json
+{
+  "older_than_days": 30,
+  "categories": ["videos", "audio", "uploads"],
+  "dry_run": true
+}
+```
+- **`dry_run` defaults to `true`** and returns the candidate list without deleting, so the
+  UI previews first and re-posts with `dry_run: false` to act.
+- `.transcript.json` sidecars and `.md` notes are never candidates, whatever categories are
+  passed — they are tiny and power the transcript view, re-summarization and chapters.
+- Files listed in the `output_files` of a queued or running job are skipped.
+- A protected or unknown category name returns `422`; `older_than_days` accepts 0-3650.
+
+Responses carry exact byte counts (`total_bytes`, `freed_bytes`) alongside the rounded MB.
+
+### 8. `GET /api/v1/models` (GPU VRAM & Model Headroom)
 Returns available Ollama LLM models enriched with memory footprint assessments against dedicated GPU VRAM:
 ```json
 {

@@ -114,6 +114,8 @@
       gap: 0.4rem;
     }
     .stat-chip strong { color: var(--text-main); font-weight: 600; }
+    button.stat-chip { font-family: inherit; font-size: 0.8rem; line-height: inherit; }
+    button.stat-chip:hover { border-color: var(--primary); color: var(--text-main); }
     .status-dot {
       width: 8px;
       height: 8px;
@@ -578,6 +580,79 @@
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(124, 58, 237, 0.45);
     }
+
+    /* Storage & Reclaim overlay (opened from the D: Drive telemetry chip) */
+    .storage-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      z-index: 200;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 4rem 1rem 1rem;
+      overflow-y: auto;
+    }
+    .storage-panel {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      width: 100%;
+      max-width: 680px;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+    }
+    .storage-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .storage-panel-body { padding: 1rem; }
+    .storage-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .storage-row.kept { opacity: 0.6; }
+    .storage-row-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+    }
+    .storage-bar {
+      height: 5px;
+      background: var(--bg-surface-elevated);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .storage-bar-fill { height: 100%; background: var(--primary); }
+    .storage-row.kept .storage-bar-fill { background: var(--text-muted); }
+    .storage-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      margin-top: 0.85rem;
+      padding-top: 0.85rem;
+      border-top: 1px solid var(--border-subtle);
+      font-size: 0.82rem;
+    }
+    .storage-candidates {
+      margin-top: 0.75rem;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      max-height: 160px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+
     .note-preview-drawer {
       background: var(--bg-surface-elevated);
       border: 1px solid var(--border-subtle);
@@ -1093,10 +1168,10 @@
           <svg class="icon" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line></svg>
           E-Cores Pin
         </div>
-        <div class="stat-chip">
+        <button type="button" class="stat-chip" id="chip-storage" title="Storage breakdown & reclaim old media" aria-haspopup="dialog" style="cursor: pointer;">
           <svg class="icon" viewBox="0 0 24 24"><path d="M22 12H2"></path><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path><line x1="6" y1="16" x2="6.01" y2="16"></line><line x1="10" y1="16" x2="10.01" y2="16"></line></svg>
           D: Drive: <strong id="val-storage">-- GB Free</strong>
-        </div>
+        </button>
         <div class="stat-chip" id="chip-ytdlp" title="yt-dlp Engine Version (Auto-updated daily). Click to check/update now." style="cursor: pointer;">
           <svg class="icon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
           yt-dlp: <strong id="val-ytdlp">--</strong>
@@ -1123,6 +1198,48 @@
       </div>
     </div>
   </header>
+
+  <!-- Storage & Reclaim overlay -->
+  <div id="storage-backdrop" class="storage-backdrop" style="display: none;">
+    <div class="storage-panel" role="dialog" aria-modal="true" aria-label="Storage and reclaim">
+      <div class="storage-panel-header">
+        <div>
+          <strong style="font-size: 0.95rem;">Storage on D:</strong>
+          <div class="hint" style="font-size: 0.75rem; color: var(--text-muted);" id="storage-drive-summary">Scanning...</div>
+        </div>
+        <div style="display: flex; gap: 0.4rem;">
+          <button type="button" class="btn-header-action" id="btn-storage-refresh" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">Refresh</button>
+          <button type="button" class="btn-header-action" id="btn-storage-close" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">✕ Close</button>
+        </div>
+      </div>
+      <div class="storage-panel-body">
+        <div id="storage-rows"><div class="hint">Scanning directories...</div></div>
+
+        <div class="storage-controls">
+          <label for="storage-age">Older than</label>
+          <select id="storage-age" style="background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); color: var(--text-main); border-radius: 4px; padding: 0.2rem 0.4rem;">
+            <option value="7">7 days</option>
+            <option value="30" selected>30 days</option>
+            <option value="90">90 days</option>
+          </select>
+          <label style="display: inline-flex; align-items: center; gap: 0.3rem;"><input type="checkbox" class="storage-cat" value="videos" checked> Videos</label>
+          <label style="display: inline-flex; align-items: center; gap: 0.3rem;"><input type="checkbox" class="storage-cat" value="audio" checked> Audio</label>
+          <label style="display: inline-flex; align-items: center; gap: 0.3rem;"><input type="checkbox" class="storage-cat" value="uploads" checked> Uploads</label>
+        </div>
+
+        <div id="storage-preview-result" class="storage-candidates" style="display: none;"></div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; margin-top: 0.85rem;">
+          <span class="hint" style="font-size: 0.74rem; color: var(--text-muted);">Transcript sidecars and notes are never deleted.</span>
+          <div style="display: flex; gap: 0.4rem;">
+            <button type="button" class="btn-sm" id="btn-storage-preview">Preview</button>
+            <button type="button" class="btn-sm" id="btn-storage-reclaim" disabled style="background: rgba(239, 68, 68, 0.2); color: var(--danger); border-color: rgba(239, 68, 68, 0.4);">Reclaim</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 
   <!-- Main Navigation Tabs -->
   <main>
@@ -4169,6 +4286,151 @@
         setTimeout(() => fetchHealth(), 1000);
       } catch (err) {
         showToast("Shutdown error: " + err.message);
+      }
+    });
+
+
+    // ---- Storage & Reclaim -------------------------------------------------
+    function fmtSize(bytes) {
+      if (!bytes) return "0 B";
+      if (bytes < 1024) return `${bytes} B`;
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+      if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+      return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+    }
+
+    function selectedStorageCategories() {
+      return Array.from(document.querySelectorAll(".storage-cat"))
+        .filter(cb => cb.checked)
+        .map(cb => cb.value);
+    }
+
+    // A preview only authorises the exact parameters it was run with.
+    function resetReclaimPreview() {
+      const btn = document.getElementById("btn-storage-reclaim");
+      const box = document.getElementById("storage-preview-result");
+      if (btn) btn.disabled = true;
+      if (box) box.style.display = "none";
+    }
+
+    async function loadStorage(refresh = false) {
+      const rows = document.getElementById("storage-rows");
+      const summary = document.getElementById("storage-drive-summary");
+      try {
+        const res = await fetch(`/api/v1/storage${refresh ? "?refresh=true" : ""}`);
+        if (!res.ok) throw new Error("Storage scan failed");
+        const data = await res.json();
+
+        summary.textContent = `${data.drive.free_gb} GB free of ${data.drive.total_gb} GB · ${fmtSize(data.total_bytes)} in API output directories`;
+
+        const widest = Math.max(1, ...data.categories.map(c => c.total_bytes));
+        rows.innerHTML = data.categories.map(c => {
+          const pct = Math.round((c.total_bytes / widest) * 100);
+          const oldest = c.oldest_modified ? new Date(c.oldest_modified).toLocaleDateString() : "-";
+          return `
+            <div class="storage-row ${c.reclaimable ? "" : "kept"}">
+              <div class="storage-row-top">
+                <span>${escapeHtml(c.label)}${c.reclaimable ? "" : ' <span class="hint" style="font-size: 0.7rem;">(always kept)</span>'}</span>
+                <span><strong>${fmtSize(c.total_bytes)}</strong> <span class="hint" style="font-size: 0.72rem;">${c.file_count} file${c.file_count === 1 ? "" : "s"} · oldest ${escapeHtml(oldest)}</span></span>
+              </div>
+              <div class="storage-bar"><div class="storage-bar-fill" style="width: ${pct}%;"></div></div>
+              <div class="hint" style="font-size: 0.7rem; color: var(--text-muted);">${escapeHtml(c.windows_directory || c.directory)}</div>
+            </div>`;
+        }).join("");
+      } catch (err) {
+        rows.innerHTML = `<div class="hint">Could not read storage: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    async function previewReclaim() {
+      const box = document.getElementById("storage-preview-result");
+      const reclaimBtn = document.getElementById("btn-storage-reclaim");
+      const categories = selectedStorageCategories();
+      if (!categories.length) {
+        showToast("Select at least one category to reclaim.");
+        return;
+      }
+      const days = parseInt(document.getElementById("storage-age").value, 10);
+      try {
+        const res = await fetch("/api/v1/storage/reclaim", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ older_than_days: days, categories, dry_run: true })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Preview failed");
+
+        box.style.display = "block";
+        if (!data.file_count) {
+          box.textContent = `Nothing older than ${days} days in ${categories.join(", ")}.`;
+          reclaimBtn.disabled = true;
+          return;
+        }
+        const shown = data.candidates.slice(0, 10)
+          .map(c => `${fmtSize(c.size_bytes).padStart(9)}  ${c.windows_path}`)
+          .join("\n");
+        const more = data.file_count > 10 ? `\n... and ${data.file_count - 10} more` : "";
+        box.textContent = `${data.file_count} file(s), ${fmtSize(data.total_bytes)} would be deleted:\n\n${shown}${more}`;
+        reclaimBtn.disabled = false;
+        reclaimBtn.textContent = `Reclaim ${fmtSize(data.total_bytes)}`;
+      } catch (err) {
+        box.style.display = "block";
+        box.textContent = `Preview failed: ${err.message}`;
+        reclaimBtn.disabled = true;
+      }
+    }
+
+    async function runReclaim() {
+      const reclaimBtn = document.getElementById("btn-storage-reclaim");
+      const categories = selectedStorageCategories();
+      const days = parseInt(document.getElementById("storage-age").value, 10);
+      reclaimBtn.disabled = true;
+      reclaimBtn.textContent = "Reclaiming...";
+      try {
+        const res = await fetch("/api/v1/storage/reclaim", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ older_than_days: days, categories, dry_run: false })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Reclaim failed");
+        showToast(`Reclaimed ${data.file_count} file(s), ${fmtSize(data.freed_bytes)} freed`);
+        if (data.errors && data.errors.length) {
+          showToast(`${data.errors.length} file(s) could not be deleted`, 5000);
+        }
+        await loadStorage(true);
+        fetchHealth();
+      } catch (err) {
+        showToast("Reclaim failed: " + err.message, 5000);
+      } finally {
+        reclaimBtn.textContent = "Reclaim";
+        resetReclaimPreview();
+      }
+    }
+
+    function openStoragePanel() {
+      document.getElementById("storage-backdrop").style.display = "flex";
+      resetReclaimPreview();
+      loadStorage(true);
+    }
+
+    function closeStoragePanel() {
+      document.getElementById("storage-backdrop").style.display = "none";
+    }
+
+    document.getElementById("chip-storage").addEventListener("click", openStoragePanel);
+    document.getElementById("btn-storage-close").addEventListener("click", closeStoragePanel);
+    document.getElementById("btn-storage-refresh").addEventListener("click", () => loadStorage(true));
+    document.getElementById("btn-storage-preview").addEventListener("click", previewReclaim);
+    document.getElementById("btn-storage-reclaim").addEventListener("click", runReclaim);
+    document.getElementById("storage-age").addEventListener("change", resetReclaimPreview);
+    document.querySelectorAll(".storage-cat").forEach(cb => cb.addEventListener("change", resetReclaimPreview));
+    document.getElementById("storage-backdrop").addEventListener("click", (e) => {
+      if (e.target.id === "storage-backdrop") closeStoragePanel();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && document.getElementById("storage-backdrop").style.display === "flex") {
+        closeStoragePanel();
       }
     });
 

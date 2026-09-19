@@ -126,3 +126,66 @@ class PlaylistExpandResponse(BaseModel):
     total_items: int
     items: List[PlaylistItem]
 
+
+class StorageCategory(BaseModel):
+    name: str
+    label: str
+    directory: str
+    windows_directory: str
+    file_count: int
+    total_bytes: int
+    total_mb: float
+    oldest_modified: Optional[str] = None
+    newest_modified: Optional[str] = None
+    reclaimable: bool
+
+
+class StorageDrive(BaseModel):
+    path: str
+    total_gb: float
+    used_gb: float
+    free_gb: float
+
+
+class StorageAgeBucket(BaseModel):
+    days: int
+    file_count: int
+    bytes: int
+    mb: float
+
+
+class StorageResponse(BaseModel):
+    drive: StorageDrive
+    categories: List[StorageCategory]
+    total_bytes: int
+    total_mb: float
+    reclaimable_by_age: Dict[str, StorageAgeBucket]
+    scanned_at: str
+
+
+class StorageCandidate(BaseModel):
+    path: str
+    windows_path: str
+    category: str
+    size_bytes: int
+    size_mb: float
+    modified_at: str
+
+
+class StorageReclaimRequest(BaseModel):
+    older_than_days: int = Field(default=30, ge=0, le=3650, description="Only files last modified more than this many days ago")
+    categories: List[str] = Field(default=["videos", "audio", "uploads"], description="Reclaimable categories: videos, audio, uploads. Transcript sidecars and notes are never deleted")
+    dry_run: bool = Field(default=True, description="Preview the candidates without deleting anything")
+
+
+class StorageReclaimResponse(BaseModel):
+    dry_run: bool
+    older_than_days: int
+    categories: List[str]
+    candidates: List[StorageCandidate]
+    file_count: int
+    total_bytes: int
+    total_mb: float
+    freed_bytes: int = 0
+    freed_mb: float = 0.0
+    errors: List[str] = []

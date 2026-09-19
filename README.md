@@ -45,6 +45,7 @@
 - **Live Job Monitor**: Real-time task progress, speeds, cancellation (`✕ Cancel`), and history purging (`Clear Finished`).
 - **Vault Explorer Tab**: Recursively scans recent markdown transcripts in `D:\AI\Vault\Transcripts`, displays tags and metadata, copies wikilinks with one click, and offers an embedded preview drawer.
 - **Dynamic Idle Shutdown**: Configure auto-sleep directly from the header (`1m`, `5m`, `15m`, `30m`, `Keep Awake`).
+- **Storage Breakdown & Reclaim**: Click the **D: Drive** chip in the header for a per-category breakdown of `D:\Output` and the upload cache, then reclaim media older than 7/30/90 days. Always a two-step flow — preview the exact file list, then confirm — and transcript sidecars, notes, and any file belonging to a running job are never deleted.
 
 ---
 
