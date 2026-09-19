@@ -28,16 +28,21 @@
 | `POST` | `/api/v1/download` | Asynchronously download YouTube or web media to `D:\Output\Videos\` |
 | `POST` | `/api/v1/clip` | Slice media with optional EBU R128 loudness normalizer and 16kHz speech WAV downmixing |
 | `POST` | `/api/v1/transcribe` | Transcribe media (Parakeet or `faster-whisper`) |
-| `POST` | `/api/v1/ingest` | One-shot pipeline: Download → Clip → Extract Audio → STT → Ollama Summary → Obsidian Note |
+| `POST` | `/api/v1/ingest` | One-shot pipeline: Download → Clip → Extract Audio → STT (chunked for long media) → Ollama Summary → Obsidian Note |
 | `POST` | `/api/v1/batch/expand-playlist` | Fast flat-extraction of YouTube playlists, channels, or video metadata for batch ingestion (<2s) |
 | `POST` | `/api/v1/vault/resummarize` | Regenerate or change summary preset for existing Obsidian note in-place without re-transcribing |
+| `POST` | `/api/v1/vault/chapters` | Generate validated YouTube-style chapter markers for an existing note |
+| `GET` | `/api/v1/storage` | Per-category breakdown of the output directories, plus D: usage |
+| `POST` | `/api/v1/storage/reclaim` | Delete old generated media by age (dry run by default; sidecars and notes never touched) |
+| `GET` | `/api/v1/diagnostics` | Recent warnings and errors, plus the log file location and an optional tail |
+| `POST` | `/api/v1/client-log` | Record a browser-side failure in the server log (buffered and flushed if the server was down) |
 | `POST` | `/api/v1/upload` | Stream uploaded media directly into `D:\AI\Cache\uploads\` |
 | `GET` | `/api/v1/media/stream` | Stream audio/video with HTTP Range byte seeking support |
 | `GET` | `/api/v1/vault/recent` | Recursively scan `D:\AI\Vault\Transcripts` for recent transcript notes |
 | `GET` | `/api/v1/vault/note` | Retrieve note content, wikilinks, and Obsidian desktop URI |
 | `GET` | `/api/v1/status/{job_id}` | Poll asynchronous job status, progress %, ETA, and output file paths |
 | `GET` | `/api/v1/jobs` | View queue history of all recent workstation operations |
-| `POST` | `/api/v1/jobs/{job_id}/cancel` | Immediately cancel a queued or running job |
+| `POST` | `/api/v1/jobs/{job_id}/cancel` | Cancel a queued or running job, terminating the engine process within ~1s |
 | `POST` | `/api/v1/jobs/clear` | Purge completed, failed, and cancelled jobs from history |
 | `POST` | `/api/v1/shutdown` | Gracefully terminate worker immediately to release host RAM and threads |
 | `GET` | `/ui` | Full-featured HTML5 Single-Page Web Studio interface |
@@ -295,6 +300,68 @@ Returns available Ollama LLM models enriched with memory footprint assessments a
 - `fits`: Comfortably fits within dedicated VRAM with >= 1.5 GB headroom.
 - `tight`: Fits with marginal headroom (< 1.5 GB).
 - `wont_fit`: Exceeds dedicated VRAM and will spill into shared host system RAM.
+
+---
+
+## 🎧 Transcription Behaviour (Long Audio, Progress, Cancellation)
+
+### Chunking
+
+Recordings longer than **20 minutes** are split before transcription and stitched back
+together. This is not an optimisation — `parakeet-cli` cannot decode a long recording at
+all. Measured on this workstation:
+
+| Audio | Result |
+| :--- | :--- |
+| 9h05m @ 44.1 kHz stereo (499 MB) | `exit 5` in `read_audio_data` after 48s |
+| 9h05m @ 16 kHz mono (93.6 MB) | `exit 5` after 28s — so it is duration, not format |
+| 4h, 2h, 1h, 30m | decode fine |
+
+9.08h × 16 kHz × 4 bytes = 1.95 GB, right at a 2 GB float32 ceiling.
+
+How the split is made:
+- One `ffmpeg silencedetect` pass supplies candidate cut points.
+- Cuts target 20-minute boundaries and **snap to the nearest silence within ±20s**, so a
+  sentence is not sliced mid-word. Without a nearby silence the cut lands on the target.
+- Chunks are written as 16 kHz mono wav into the job's temp directory and removed with it.
+- Segment timestamps are shifted by each chunk's start and ids renumbered, so the note's
+  transcript table is continuous. The response gains a `chunks` count.
+
+Throughput on this workstation: **~20x realtime** (a 20-minute chunk in ~59s), so a
+9-hour book is roughly 28 minutes of transcription.
+
+### Progress semantics
+
+`JobDetail.speed` carries a human-readable position and `progress_percent` the overall bar.
+Two kinds of number appear, and they are deliberately distinguishable:
+
+- **Measured** — a completed chunk, or a real ffmpeg position from its `-progress` stream.
+- **Estimated** — a position *within* a chunk, extrapolated from this workstation's
+  recorded throughput. Rendered with `~` and `est.`, e.g.
+  `Transcribing (parakeet) ~2:23:12 (25% est.) · ETA 34m`.
+
+`parakeet-cli` emits nothing until it exits (every token line of a 4-minute file arrives in
+one burst at the end), which is why in-chunk positions can only ever be estimates. The
+**ETA is derived only from measured checkpoints** and the interval between them; none is
+shown until two exist. Throughput samples are kept in `D:\AI\Cache\stt_rate.json` (rolling
+last 10) so estimates sharpen with use.
+
+### Cancellation
+
+`POST /api/v1/jobs/{id}/cancel` now stops the work, not just the bookkeeping:
+- checked between chunks, and
+- the engine process is polled once a second and terminated, so CPU is released within
+  about a second rather than at the end of the recording.
+
+A cancellation is distinct from a failure, so it never triggers the whisper fallback.
+
+### Engine fallback
+
+If parakeet fails, the job falls back to `faster-whisper base` on CPU and **says so** in
+`speed`, including the expected slowdown for long audio. Previously this was silent, which
+made a 9-hour fallback indistinguishable from a hang.
+
+---
 
 ---
 
