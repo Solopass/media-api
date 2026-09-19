@@ -55,6 +55,7 @@ One-shot ingestion pipeline:
   "clip_end": "00:05:00",
   "engine": "parakeet",
   "model_size": "tiny",
+  "language": null,
   "summarize": true,
   "llm_model": "sol-fast",
   "summary_preset": "executive",
@@ -65,10 +66,13 @@ One-shot ingestion pipeline:
 }
 ```
 **Source Video Retention** (`keep_video`, default `false`):
-- `false`: once the vault note is written, the downloaded video in `D:\Output\Videos` (and any clipped intermediate) is deleted.
+- `false`: the video **this job produced** is deleted once the vault note is written — a yt-dlp download, a clip intermediate, or an upload-cache copy from drag-and-drop.
 - `true`: the video is kept.
 - The extracted audio and `.transcript.json` sidecar are **always** kept — the UI audio player streams them back.
-- Files outside the API's own output directories (`D:\Output\Videos`, `D:\Output\Audio`, `D:\AI\Cache\uploads`) are never deleted, so a local path you point the API at stays untouched regardless of this setting.
+- Files the job did not produce are never deleted, even inside `D:\Output\Videos`. Re-ingesting a video you parked there by path leaves it exactly where it is.
+- Cancelled and failed jobs also reclaim their own download, so an aborted run does not strand gigabytes.
+
+**Language** (`language`, default `null` = auto-detect): a code such as `en`, `es`, `ja`. Parakeet covers 25 European languages; any other code routes the job to faster-whisper automatically.
 
 **Summary Presets**:
 - `executive`: Core Briefing, Key Themes & Decisions, Deliverables & Actionable Takeaways.
@@ -155,6 +159,8 @@ Regenerate or switch summary presets for an existing markdown note without re-do
   "summary_focus": "key architectures and trade-offs"
 }
 ```
+The target must resolve inside the Obsidian vault roots (`D:\AI\Vault`, `D:\OBVLT`, `D:\Output\Transcripts`) and must be a `.md` file; anything else returns `403` or `400`. This endpoint rewrites the file in place.
+
 Replaces the `> [!abstract]` callout in-place while preserving YAML frontmatter, headers, and timestamped transcripts.
 
 ### 7. `GET /api/v1/models` (GPU VRAM & Model Headroom)

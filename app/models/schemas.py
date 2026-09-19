@@ -44,6 +44,7 @@ class IngestRequest(BaseModel):
     clip_end: Optional[str] = Field(default=None, description="Optional clip end timecode")
     engine: Optional[str] = Field(default=None, description="STT engine: parakeet or whisper (default from MEDIA_API_STT_ENGINE, parakeet)")
     model_size: str = Field(default="tiny", description="Whisper model size (whisper engine only)")
+    language: Optional[str] = Field(default=None, description="Language code (e.g. en, es, zh) or null to auto-detect. Languages parakeet does not cover fall back to whisper")
     summarize: bool = Field(default=True, description="Generate executive summary with local Ollama LLM")
     llm_model: str = Field(default="sol-fast", description="Local LLM model to query")
     summary_preset: str = Field(default="executive", description="Summary template: executive, meeting, timeline, technical, bullets")

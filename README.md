@@ -16,7 +16,8 @@
   - `technical`: Architectural & System Overview, APIs/Schemas, Technical Trade-offs, Implementation Notes.
   - `bullets`: Dense, high-signal bulleted takeaways with bold lead-ins.
 - **Topical Focus Guidance**: Inject custom user instructions into the local LLM prompt (`summary_focus`).
-- **Automatic Source Video Cleanup**: The downloaded video is deleted once the vault note is written, so `D:\Output\Videos` does not grow unbounded. Flip **Keep Source Video** in the UI (or `"keep_video": true`) to retain it. Extracted audio and the `.transcript.json` sidecar are always kept for the in-app player, and files outside the API's own output directories are never deleted.
+- **Automatic Source Video Cleanup**: The video a job produced (download, clip intermediate, or upload-cache copy) is deleted once the vault note is written, so `D:\Output\Videos` does not grow unbounded — cancelled and failed runs reclaim theirs too. Flip **Keep Source Video** in the UI (or `"keep_video": true`) to retain it. Extracted audio and the `.transcript.json` sidecar are always kept for the in-app player, and a file the job did not produce is never deleted, so re-ingesting one of your own videos by path leaves it alone.
+- **Per-Job Language Override**: Leave **Language** empty to auto-detect, or pass a code (`en`, `es`, `ja`). Parakeet covers 25 European languages; anything else routes to faster-whisper automatically.
 - **Obsidian Second Brain Integration**: Automatically creates formatted notes in `D:\AI\Vault\Transcripts/` with YAML frontmatter, summary callouts (`> [!abstract]`), timestamped transcript tables, deep-links (`obsidian://open?...`), and non-blocking semantic vector re-indexing (`find-concept --reindex`).
 
 ### 2. Audio Engineering & Interactive Playback
@@ -51,6 +52,7 @@
 
 - **Host P-Core Protection**: Background workers are pinned to E-cores 8–15 (`taskset -c 8-15 nice -n 10`), leaving P-cores 0–7 100% free for host Windows responsiveness.
 - **Zero-Leak Storage Policy**: All writes stay strictly on `D:\` (`D:\Output`, `D:\AI\Cache`, `D:\AI\Vault`). The Windows `C:\` drive is never touched.
+- **Allow-Listed File Access**: Every endpoint that takes a caller-supplied path (`/media/stream`, `/vault/note`, `/vault/resummarize`) resolves it against a fixed root list in `app/paths.py`. The AI cache root is deliberately excluded — only `Cache\uploads` is reachable — so `cookies.txt`, agent history and browser profiles are not served.
 - **On-Demand Socket Activation**: Managed by systemd (`media-api.socket` on `127.0.0.1:8080`). Consumes **0 MB RAM and 0% CPU** on standby; wakes in <1s on the first HTTP request.
 - **Loopback-Only Binding**: Both socket activation and direct `./run.sh` invocation bind `127.0.0.1` only, so the API is never exposed to the network. To reach it from another machine deliberately, run `MEDIA_API_BIND_HOST=0.0.0.0 ./run.sh` (there is no authentication, so only do this on a trusted network).
 - **Zero-Touch Isolation**: `sol-hud` remains completely untouched.

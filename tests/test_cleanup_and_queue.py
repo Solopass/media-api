@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from app.config import settings
 from app.main import app
 from app.models.schemas import IngestRequest, JobStatus
+from app.paths import MEDIA_ROOTS, NOTE_ROOTS, is_path_allowed
 from app.queue.manager import JobQueueManager, SAVE_THROTTLE_SECONDS
 from app.routers import ingest as ingest_mod
 
@@ -224,31 +225,206 @@ def pipeline_env(tmp_path, monkeypatch):
     return tmp_path
 
 
-@pytest.mark.parametrize("keep_video,should_survive", [(False, False), (True, True)])
-def test_pipeline_honours_keep_video(pipeline_env, keep_video, should_survive):
-    video = settings.output_videos / "pipeline_probe.mp4"
-    if not _make_test_video(video):
-        pytest.skip("ffmpeg unavailable")
-
-    job_id = ingest_mod.job_manager.create_job("ingest", str(video))
-    req = IngestRequest(source=str(video), summarize=True, keep_video=keep_video)
+def _run_pipeline(source, keep_video=False):
+    job_id = ingest_mod.job_manager.create_job("ingest", str(source))
+    req = IngestRequest(source=str(source), summarize=True, keep_video=keep_video)
     ingest_mod.run_ingest_pipeline(job_id, req)
+    return ingest_mod.job_manager.get_job(job_id)
 
-    job = ingest_mod.job_manager.get_job(job_id)
-    assert job.status == JobStatus.COMPLETED, job.error
 
-    # The vault note always lands, whatever the retention setting.
+def _assert_note_and_audio(job):
     note = settings.vault_transcripts / Path(job.output_files["vault_note"]).name
     assert note.exists()
     assert "Stubbed summary." in note.read_text(encoding="utf-8")
-
     # Audio + transcript sidecar are kept either way (the UI player streams them).
     assert Path(job.output_files["audio"]).exists()
     assert Path(job.output_files["transcript_json"]).exists()
 
-    assert video.exists() is should_survive
-    if should_survive:
-        assert job.output_files["media"] == str(video)
-    else:
-        assert "media" not in job.output_files
-        assert "source video deleted" in job.speed
+
+def test_downloaded_video_is_deleted(pipeline_env, monkeypatch):
+    """The common case: yt-dlp fetched it, so the pipeline owns it."""
+    downloaded = settings.output_videos / "downloaded.mp4"
+    if not _make_test_video(downloaded):
+        pytest.skip("ffmpeg unavailable")
+    monkeypatch.setattr(ingest_mod.YtDlpService, "download", lambda *a, **k: {
+        "title": "Test Clip",
+        "duration": 1,
+        "uploader": "Test",
+        "file_path": str(downloaded),
+        "url": "https://example.com/v"
+    })
+
+    job = _run_pipeline("https://example.com/v")
+
+    assert job.status == JobStatus.COMPLETED, job.error
+    _assert_note_and_audio(job)
+    assert not downloaded.exists()
+    assert "media" not in job.output_files
+    assert "source video deleted" in job.speed
+
+
+def test_downloaded_video_is_kept_when_requested(pipeline_env, monkeypatch):
+    downloaded = settings.output_videos / "downloaded_keep.mp4"
+    if not _make_test_video(downloaded):
+        pytest.skip("ffmpeg unavailable")
+    monkeypatch.setattr(ingest_mod.YtDlpService, "download", lambda *a, **k: {
+        "title": "Test Clip",
+        "duration": 1,
+        "uploader": "Test",
+        "file_path": str(downloaded),
+        "url": "https://example.com/v"
+    })
+
+    job = _run_pipeline("https://example.com/v", keep_video=True)
+
+    assert job.status == JobStatus.COMPLETED, job.error
+    _assert_note_and_audio(job)
+    assert downloaded.exists()
+    assert job.output_files["media"] == str(downloaded)
+
+
+def test_upload_cache_copy_is_deleted(pipeline_env):
+    """A drag-and-drop copy in the uploads cache is ours to clean up."""
+    uploaded = settings.uploads_dir / "dropped.mp4"
+    if not _make_test_video(uploaded):
+        pytest.skip("ffmpeg unavailable")
+
+    job = _run_pipeline(uploaded)
+
+    assert job.status == JobStatus.COMPLETED, job.error
+    _assert_note_and_audio(job)
+    assert not uploaded.exists()
+
+
+def test_preexisting_file_in_output_dir_survives(pipeline_env):
+    """
+    Re-ingesting a file the user parked in the output directory must not delete
+    it: this job did not produce it, wherever it happens to live.
+    """
+    parked = settings.output_videos / "my_own_copy.mp4"
+    if not _make_test_video(parked):
+        pytest.skip("ffmpeg unavailable")
+
+    job = _run_pipeline(parked)
+
+    assert job.status == JobStatus.COMPLETED, job.error
+    _assert_note_and_audio(job)
+    assert parked.exists()
+    assert job.output_files["media"] == str(parked)
+
+
+def test_failed_job_reclaims_its_download(pipeline_env, monkeypatch):
+    downloaded = settings.output_videos / "doomed.mp4"
+    if not _make_test_video(downloaded):
+        pytest.skip("ffmpeg unavailable")
+    monkeypatch.setattr(ingest_mod.YtDlpService, "download", lambda *a, **k: {
+        "title": "Test Clip",
+        "duration": 1,
+        "uploader": "Test",
+        "file_path": str(downloaded),
+        "url": "https://example.com/v"
+    })
+
+    def _boom(*a, **k):
+        raise RuntimeError("stt exploded")
+
+    monkeypatch.setattr(ingest_mod.stt_service, "transcribe", _boom)
+
+    job = _run_pipeline("https://example.com/v")
+
+    assert job.status == JobStatus.FAILED
+    assert not downloaded.exists(), "an aborted run must not hoard the download"
+    # The error note must not advertise a file that was just reclaimed.
+    assert str(downloaded) not in job.output_files.values()
+
+
+def test_cancelled_job_reclaims_its_download(pipeline_env, monkeypatch):
+    downloaded = settings.output_videos / "cancelled.mp4"
+    if not _make_test_video(downloaded):
+        pytest.skip("ffmpeg unavailable")
+    monkeypatch.setattr(ingest_mod.YtDlpService, "download", lambda *a, **k: {
+        "title": "Test Clip",
+        "duration": 1,
+        "uploader": "Test",
+        "file_path": str(downloaded),
+        "url": "https://example.com/v"
+    })
+
+    job_id = ingest_mod.job_manager.create_job("ingest", "https://example.com/v")
+
+    # Cancel from inside transcription, the way the UI Cancel button would.
+    def _cancel_midway(*a, **k):
+        ingest_mod.job_manager.cancel_job(job_id)
+        return {
+            "full_text": "partial",
+            "segments": [{"start": 0.0, "end": 1.0, "text": "partial"}],
+            "duration": 1.0,
+            "model": "stub",
+            "language": "en"
+        }
+
+    monkeypatch.setattr(ingest_mod.stt_service, "transcribe", _cancel_midway)
+    ingest_mod.run_ingest_pipeline(job_id, IngestRequest(source="https://example.com/v"))
+
+    job = ingest_mod.job_manager.get_job(job_id)
+    assert job.status == JobStatus.CANCELLED
+    assert not downloaded.exists()
+
+
+def test_keep_video_survives_cancellation(pipeline_env, monkeypatch):
+    downloaded = settings.output_videos / "cancelled_keep.mp4"
+    if not _make_test_video(downloaded):
+        pytest.skip("ffmpeg unavailable")
+    monkeypatch.setattr(ingest_mod.YtDlpService, "download", lambda *a, **k: {
+        "title": "Test Clip",
+        "duration": 1,
+        "uploader": "Test",
+        "file_path": str(downloaded),
+        "url": "https://example.com/v"
+    })
+
+    job_id = ingest_mod.job_manager.create_job("ingest", "https://example.com/v")
+    ingest_mod.job_manager.cancel_job(job_id)
+    ingest_mod.run_ingest_pipeline(
+        job_id, IngestRequest(source="https://example.com/v", keep_video=True)
+    )
+
+    assert downloaded.exists()
+
+
+# --------------------------------------------------------------------------
+# Path allow-lists
+# --------------------------------------------------------------------------
+
+def test_resummarize_rejects_paths_outside_the_vault(tmp_path):
+    outsider = tmp_path / "secrets.md"
+    outsider.write_text("# not in the vault", encoding="utf-8")
+
+    res = client.post("/api/v1/vault/resummarize", json={"note_path": str(outsider)})
+    assert res.status_code == 403
+    assert outsider.read_text(encoding="utf-8") == "# not in the vault"
+
+
+def test_resummarize_rejects_non_markdown_targets():
+    target = settings.vault_transcripts / "resummarize_probe.txt"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("plain text, not a note", encoding="utf-8")
+    try:
+        res = client.post("/api/v1/vault/resummarize", json={"note_path": str(target)})
+        assert res.status_code == 400
+        assert target.read_text(encoding="utf-8") == "plain text, not a note"
+    finally:
+        target.unlink(missing_ok=True)
+
+
+def test_media_roots_exclude_the_cache_root():
+    assert is_path_allowed(settings.uploads_dir / "clip.mp4", MEDIA_ROOTS) is True
+    assert is_path_allowed(Path("/mnt/d/Output/Audio/clip.mp3"), MEDIA_ROOTS) is True
+    # cookies.txt and agent session history live in the cache root.
+    assert is_path_allowed(Path("/mnt/d/AI/Cache/cookies.txt"), MEDIA_ROOTS) is False
+    assert is_path_allowed(Path("/etc/passwd"), MEDIA_ROOTS) is False
+
+
+def test_note_roots_reject_traversal():
+    escape = Path("/mnt/d/AI/Vault/Transcripts/../../../etc/passwd")
+    assert is_path_allowed(escape, NOTE_ROOTS) is False

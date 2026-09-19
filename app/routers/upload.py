@@ -8,27 +8,14 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 
 from app.config import settings, normalize_path, to_windows_path
+from app.paths import MEDIA_EXTENSIONS, MEDIA_ROOTS, NOTE_ROOTS, is_path_allowed
 
 router = APIRouter(prefix="/api/v1", tags=["Media Upload & Streaming"])
 
-ALLOWED_MEDIA_ROOTS = [
-    Path("/mnt/d/Output"),
-    Path("/mnt/d/AI/Cache"),
-    Path("/mnt/d/AI/Vault"),
-    Path("/mnt/d/OBVLT")
-]
-
-ALLOWED_NOTE_ROOTS = [
-    Path("/mnt/d/AI/Vault"),
-    Path("/mnt/d/Output/Transcripts"),
-    Path("/mnt/d/OBVLT")
-]
-
-ALLOWED_EXTENSIONS = {
-    ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg",
-    ".mp4", ".webm", ".mkv", ".mov", ".avi",
-    ".json", ".txt", ".md"
-}
+# Kept as module aliases for readability at the call sites below.
+ALLOWED_MEDIA_ROOTS = MEDIA_ROOTS
+ALLOWED_NOTE_ROOTS = NOTE_ROOTS
+ALLOWED_EXTENSIONS = MEDIA_EXTENSIONS
 
 def _sanitize_filename(name: str) -> str:
     base = os.path.basename(name)
@@ -36,15 +23,7 @@ def _sanitize_filename(name: str) -> str:
     return clean or "uploaded_media"
 
 def _is_path_allowed(target: Path, roots: list[Path]) -> bool:
-    try:
-        resolved_target = target.resolve()
-        for root in roots:
-            resolved_root = root.resolve()
-            if resolved_target == resolved_root or resolved_target.is_relative_to(resolved_root):
-                return True
-    except Exception:
-        return False
-    return False
+    return is_path_allowed(target, roots)
 
 @router.post("/upload")
 async def upload_media_file(file: UploadFile = File(...)):

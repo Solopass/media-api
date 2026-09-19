@@ -1,3 +1,5 @@
+import shutil
+
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app
@@ -100,15 +102,27 @@ def test_media_stream_security_and_streaming():
     response = client.get("/api/v1/media/stream?path=/etc/passwd")
     assert response.status_code == 403
 
+    # The AI cache root holds cookies.txt, agent history and browser profiles:
+    # only its uploads subdirectory is streamable.
+    response = client.get("/api/v1/media/stream?path=/mnt/d/AI/Cache/stt-test/meeting.wav")
+    assert response.status_code == 403
+    response = client.get("/api/v1/media/stream?path=/mnt/d/AI/Cache/cookies.txt")
+    assert response.status_code == 403
+
     # Attempting to stream non-existent file in allowed directory returns 404
     response = client.get("/api/v1/media/stream?path=/mnt/d/Output/Videos/non_existent.mp4")
     assert response.status_code == 404
 
-    # Streaming existing test media returns 200
-    test_wav = "/mnt/d/AI/Cache/stt-test/meeting.wav"
-    response = client.get(f"/api/v1/media/stream?path={test_wav}")
-    assert response.status_code == 200
-    assert "audio" in response.headers.get("content-type", "")
+    # Streaming an actual file from an allowed root returns 200
+    probe = settings.uploads_dir / "stream_probe.wav"
+    probe.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile("/mnt/d/AI/Cache/stt-test/meeting.wav", probe)
+    try:
+        response = client.get(f"/api/v1/media/stream?path={probe}")
+        assert response.status_code == 200
+        assert "audio" in response.headers.get("content-type", "")
+    finally:
+        probe.unlink(missing_ok=True)
 
 def test_vault_note_endpoint():
     # Attempting path outside vault returns 403

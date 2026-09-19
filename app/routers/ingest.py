@@ -8,6 +8,7 @@ import threading
 import traceback
 import urllib.parse
 from pathlib import Path
+from typing import Optional
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
 
@@ -21,32 +22,23 @@ from app.services.ffmpeg_service import FFmpegService
 from app.services import stt_service
 from app.services.obsidian_service import ObsidianService, summarize_with_ollama
 from app.config import settings, normalize_path
+from app.paths import NOTE_ROOTS, is_inside, is_path_allowed
 
 logger = logging.getLogger("media_api")
 
 router = APIRouter(prefix="/api/v1", tags=["Full Ingestion Pipeline"])
 
-# Only files this API produced may be auto-deleted; a local path the user
-# pointed us at is never touched.
+# Safety net for cleanup: even a file the pipeline believes it produced must
+# live somewhere this API writes into before it can be deleted.
 MANAGED_MEDIA_DIRS = (settings.output_videos, settings.output_audio, settings.uploads_dir)
 
 
 def _is_managed_media(path: Path) -> bool:
     """True when path sits inside a directory this API writes into."""
-    try:
-        resolved = path.resolve()
-    except Exception:
-        return False
-    for managed in MANAGED_MEDIA_DIRS:
-        try:
-            resolved.relative_to(managed.resolve())
-            return True
-        except ValueError:
-            continue
-    return False
+    return is_path_allowed(path, list(MANAGED_MEDIA_DIRS))
 
 
-def _discard_source_video(candidates: list[Path], keep: Path) -> tuple[list[str], float]:
+def _discard_source_video(candidates: list[Path], keep: Optional[Path]) -> tuple[list[str], float]:
     """
     Delete the (large) source video once the transcript exists.
 
@@ -99,6 +91,22 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
     stage = "Initialization"
     media_info = {"title": "Unknown Media", "url": req.source}
     partial_files = {}
+    # Media this job created, and therefore may clean up. A file the user keeps
+    # elsewhere - including one already sitting in D:\Output\Videos - is never
+    # in here, so re-ingesting it by path leaves it alone.
+    produced_media: list[Path] = []
+    audio_path: Optional[Path] = None
+
+    def _discard_unfinished_media():
+        """Drop this job's download when the run ends without a note."""
+        if req.keep_video or not produced_media:
+            return
+        removed, freed_mb = _discard_source_video(produced_media, keep=audio_path)
+        if removed:
+            for key in ("video", "clipped"):
+                if partial_files.get(key) in removed:
+                    partial_files.pop(key, None)
+            logger.info(f"[ingest] Aborted job {job_id}: reclaimed {freed_mb:.0f} MB of unused media")
 
     try:
         # Step 0: Pre-flight storage check (minimum 3 GB free on D:)
@@ -133,10 +141,14 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
 
             media_info = YtDlpService.download(req.source, audio_only=False, progress_hook=_dl_progress)
             current_media = Path(media_info["file_path"])
+            produced_media.append(current_media)
         else:
             current_media = normalize_path(req.source)
             if not current_media.exists():
                 raise FileNotFoundError(f"Media not found: {current_media}")
+            # An upload-cache copy belongs to this job; anything else is the user's.
+            if is_inside(current_media, settings.uploads_dir):
+                produced_media.append(current_media)
             media_info = {
                 "title": current_media.stem,
                 "file_path": str(current_media),
@@ -161,6 +173,7 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
             )
             media_info["file_path"] = str(current_media)
             partial_files["clipped"] = str(current_media)
+            produced_media.append(current_media)
 
         # Check cancellation
         if job_manager.is_cancelled(job_id):
@@ -181,9 +194,11 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
             return
 
         stage = "Speech-to-Text Transcription"
-        engine = stt_service.resolve_engine(req.engine, None)
+        engine = stt_service.resolve_engine(req.engine, req.language)
         job_manager.update_job(job_id, progress_percent=65.0, speed=f"Transcribing audio with {engine}...")
-        trans_res = stt_service.transcribe(audio_path, engine=engine, model_size=req.model_size)
+        trans_res = stt_service.transcribe(
+            audio_path, engine=engine, model_size=req.model_size, language=req.language
+        )
 
         if job_manager.is_cancelled(job_id):
             return
@@ -232,11 +247,7 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
         # Step 6: Discard the source video unless the user asked to keep it
         removed_media, freed_mb = [], 0.0
         if not req.keep_video:
-            candidates = [current_media]
-            for key in ("video", "clipped"):
-                if partial_files.get(key):
-                    candidates.append(Path(partial_files[key]))
-            removed_media, freed_mb = _discard_source_video(candidates, keep=audio_path)
+            removed_media, freed_mb = _discard_source_video(produced_media, keep=audio_path)
 
         # Step 7: Trigger Semantic Vector Re-Index (Non-blocking)
         _trigger_reindex()
@@ -269,6 +280,9 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
         if not job_manager.is_cancelled(job_id):
             tb_str = traceback.format_exc()
             logger.exception(f"[ingest] Pipeline glitched at stage '{stage}' for job {job_id}: {e}")
+            # Reclaim the download first, so the error note only lists files
+            # that are actually still on disk.
+            _discard_unfinished_media()
             clean_sub = re.sub(r"\.\.+[/\\]?", "", req.vault_subfolder or "Transcripts").strip("/\\") or "Transcripts"
             try:
                 error_note = ObsidianService.create_error_report_note(
@@ -296,12 +310,14 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
                 output_files=partial_files
             )
     finally:
+        if job_manager.is_cancelled(job_id):
+            _discard_unfinished_media()
         job_manager.pipeline_ended()
 
 @router.post("/ingest", response_model=JobResponse)
 def ingest_media(req: IngestRequest):
     try:
-        stt_service.resolve_engine(req.engine, None)
+        stt_service.resolve_engine(req.engine, req.language)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     job_id = job_manager.create_job("ingest", req.source)
@@ -331,6 +347,14 @@ def resummarize_note(req: ResummarizeRequest):
                 target_file = candidate2
             else:
                 raise HTTPException(status_code=404, detail=f"Note file not found: {raw_path}")
+
+    # This endpoint rewrites the file in place, so it is held to the same roots
+    # as /vault/note - and to Markdown, since a note without an abstract callout
+    # gets the new summary prepended.
+    if not is_path_allowed(target_file, NOTE_ROOTS):
+        raise HTTPException(status_code=403, detail="Access denied: path outside Obsidian vault")
+    if target_file.suffix.lower() != ".md":
+        raise HTTPException(status_code=400, detail="Target is not a Markdown note")
 
     content = target_file.read_text(encoding="utf-8")
 

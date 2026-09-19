@@ -1292,6 +1292,11 @@
                   <option value="medium">Medium</option>
                 </select>
               </div>
+              <div class="form-group">
+                <label for="ingest-language">Language <span class="hint">(optional)</span></label>
+                <input type="text" id="ingest-language" placeholder="auto-detect" maxlength="8" style="text-transform: lowercase;">
+                <div class="hint" style="font-size: 0.73rem; color: var(--text-muted); margin-top: 0.25rem;">Code like <code>en</code>, <code>es</code>, <code>ja</code>. Parakeet covers 25 European languages; anything else routes to Whisper automatically.</div>
+              </div>
             </div>
 
             <div class="form-row">
@@ -1930,6 +1935,13 @@
     function keepVideoVal() {
       const el = document.getElementById("ingest-keep-video");
       return !!(el && el.checked);
+    }
+
+    // Null means auto-detect; a code outside Parakeet's 25 languages routes to Whisper.
+    function languageVal() {
+      const el = document.getElementById("ingest-language");
+      const raw = el ? el.value.trim().toLowerCase() : "";
+      return raw || null;
     }
 
     function escapeHtml(str) {
@@ -2879,7 +2891,8 @@
               summary_focus: focusVal,
               vault_subfolder: subfolderVal,
               tags: tagsVal,
-              keep_video: keepVideoVal()
+              keep_video: keepVideoVal(),
+              language: languageVal()
             };
             const res = await fetch("/api/v1/ingest", {
               method: "POST",
@@ -3013,7 +3026,8 @@
             summary_focus: focusVal,
             vault_subfolder: subfolderVal,
             tags: tagsVal,
-            keep_video: keepVideoVal()
+            keep_video: keepVideoVal(),
+            language: languageVal()
           };
 
           const res = await fetch("/api/v1/ingest", {
@@ -3510,7 +3524,8 @@
         summary_focus: focusVal,
         vault_subfolder: subfolderVal,
         tags: tagsVal,
-        keep_video: keepVideoVal()
+        keep_video: keepVideoVal(),
+        language: languageVal()
       };
 
       btn.disabled = true;
