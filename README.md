@@ -56,7 +56,7 @@
 - **Host P-Core Protection**: Background workers are pinned to E-cores 8–15 (`taskset -c 8-15 nice -n 10`), leaving P-cores 0–7 100% free for host Windows responsiveness.
 - **Zero-Leak Storage Policy**: All writes stay strictly on `D:\` (`D:\Output`, `D:\AI\Cache`, `D:\AI\Vault`). The Windows `C:\` drive is never touched.
 - **Allow-Listed File Access**: Every endpoint that takes a caller-supplied path (`/media/stream`, `/vault/note`, `/vault/resummarize`) resolves it against a fixed root list in `app/paths.py`. The AI cache root is deliberately excluded — only `Cache\uploads` is reachable — so `cookies.txt`, agent history and browser profiles are not served.
-- **On-Demand Socket Activation**: Managed by systemd (`media-api.socket` on `127.0.0.1:8080`). Consumes **0 MB RAM and 0% CPU** on standby; wakes in <1s on the first HTTP request.
+- **On-Demand Socket Activation**: Managed by systemd (`media-api.socket` on `127.0.0.1:8080`). Consumes **0 MB RAM and 0% CPU** on standby; wakes in <1s on the first HTTP request — **but only while the WSL distro is running**. A stopped distro cannot be woken by an HTTP request from Windows, so the browser will simply report "Offline / Idle" forever. Always enter through the **SOL Media Studio** shortcut (`Media-Studio-Silent.vbs`), which holds the distro open with `wsl.exe -d Ubuntu-24.04 -- sleep infinity` for as long as it runs. Opening the UI from a bookmark after that holder has exited will not start anything.
 - **Loopback-Only Binding**: Both socket activation and direct `./run.sh` invocation bind `127.0.0.1` only, so the API is never exposed to the network. To reach it from another machine deliberately, run `MEDIA_API_BIND_HOST=0.0.0.0 ./run.sh` (there is no authentication, so only do this on a trusted network).
 - **Zero-Touch Isolation**: `sol-hud` remains completely untouched.
 
@@ -71,6 +71,7 @@ Double-click the **SOL Media Studio** shortcut on your Windows Desktop (or run `
 
 ### Alternative Launch Options
 - **Persistent Terminal**: Run `Media-Studio.bat` if you prefer an open command prompt window.
+- **Recovering a dead Studio**: If the header shows "Offline / Idle" and refreshing does nothing, the distro has stopped. Re-run the shortcut — no amount of reloading the page will bring it back, because the listening socket lives inside the stopped distro.
 - **Clean Shutdown**: Click the red **Shutdown** button in the top-right header of the web studio, or run `Stop-Media-Studio.bat`.
 
 ---
