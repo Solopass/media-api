@@ -9,7 +9,7 @@ import threading
 import traceback
 import urllib.parse
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
 
@@ -95,23 +95,44 @@ def _format_eta(seconds: float) -> str:
 def _stage_progress(job_id: str, started_at: float, band_start: float, band_end: float, label: str):
     """
     Build a progress callback that maps a stage's 0..1 fraction onto its slice of
-    the overall pipeline bar, with a position and an ETA extrapolated from the
-    rate so far.
+    the overall pipeline bar, with a position and an ETA.
+
+    The ETA is derived only from *measured* checkpoints - a completed chunk, or a
+    real ffmpeg position - never from an in-chunk estimate, and never from the
+    wall clock since the stage began. Extrapolating from elapsed time counted the
+    minutes spent splitting a long recording as if they were transcription,
+    which turned a 35-minute job into a reported "ETA 4.0h".
     """
+    anchor: Dict[str, float] = {}
+
     def _report(fraction: float, position_seconds: float, estimated: bool = False):
         if job_manager.is_cancelled(job_id):
             return
-        pct = band_start + (band_end - band_start) * max(0.0, min(1.0, fraction))
-        elapsed = time.time() - started_at
+        fraction = max(0.0, min(1.0, fraction))
+        pct = band_start + (band_end - band_start) * fraction
+        now = time.time()
+
+        if not estimated and 0.0 < fraction < 1.0:
+            if "fraction" not in anchor:
+                anchor.update({"time": now, "fraction": fraction})
+            elif fraction > anchor["fraction"]:
+                rate = (fraction - anchor["fraction"]) / max(1e-6, now - anchor["time"])
+                if rate > 0:
+                    anchor["remaining"] = (1.0 - fraction) / rate
+
         # "~" and "est." keep an extrapolated position from reading as measured.
         prefix = "~" if estimated else ""
-        detail = f"{label} {prefix}{_format_clock(position_seconds)}"
-        if fraction > 0.01 and elapsed > 5:
-            eta = _format_eta((elapsed / fraction) - elapsed)
+        detail = f"{label} {prefix}{_format_clock(position_seconds)} ({int(fraction * 100)}%"
+        if estimated:
+            detail += " est."
+        detail += ")"
+
+        remaining = anchor.get("remaining")
+        if remaining and fraction < 1.0:
+            eta = _format_eta(remaining - (now - anchor["time"]))
             if eta:
-                detail += f" ({int(fraction * 100)}%{' est.' if estimated else ''}, ETA {eta})"
-        else:
-            detail += f" ({int(fraction * 100)}%)"
+                detail += f" · ETA {eta}"
+
         job_manager.update_job(job_id, progress_percent=round(pct, 1), speed=detail)
 
     return _report

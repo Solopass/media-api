@@ -177,3 +177,26 @@ def test_clock_formatting(seconds, expected):
 ])
 def test_eta_formatting(seconds, expected):
     assert ingest_mod._format_eta(seconds) == expected
+
+
+def test_eta_comes_only_from_measured_checkpoints(monkeypatch):
+    """
+    Extrapolating from elapsed time counted the minutes spent splitting a long
+    recording as transcription, reporting "ETA 4.0h" for a 35-minute job.
+    """
+    updates = []
+    monkeypatch.setattr(ingest_mod.job_manager, "is_cancelled", lambda job_id: False)
+    monkeypatch.setattr(ingest_mod.job_manager, "update_job", lambda job_id, **kw: updates.append(kw))
+
+    # Stage started 10 minutes ago; most of that was splitting, not transcribing.
+    report = ingest_mod._stage_progress("job-1", time.time() - 600, 65.0, 84.0, "Transcribing")
+
+    report(0.02, 13.0, True)
+    assert "ETA" not in updates[-1]["speed"], "an in-chunk estimate cannot anchor an ETA"
+
+    report(1 / 28, 1200.0, False)
+    assert "ETA" not in updates[-1]["speed"], "one checkpoint gives no rate yet"
+
+    time.sleep(0.05)
+    report(2 / 28, 2400.0, False)
+    assert "ETA" in updates[-1]["speed"], "two checkpoints give a real rate"
