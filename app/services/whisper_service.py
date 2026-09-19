@@ -1,7 +1,8 @@
 import os
 import threading
+import time
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 from faster_whisper import WhisperModel
 
 from app.config import settings
@@ -32,7 +33,8 @@ class WhisperService:
         cls,
         audio_path: Path,
         model_size: str = "tiny",
-        language: Optional[str] = None
+        language: Optional[str] = None,
+        progress_callback: Optional[Callable[[float, float], None]] = None,
     ) -> Dict[str, Any]:
         model = cls.get_model(model_size)
         with cls._inference_semaphore:
@@ -45,7 +47,16 @@ class WhisperService:
             # Materialize segments inside the lock to ensure streaming completes safely
             seg_list = []
             full_text_parts = []
+            last_emit = 0.0
             for s in segments:
+                if progress_callback and info.duration:
+                    now = time.time()
+                    if now - last_emit >= 2.0:
+                        last_emit = now
+                        try:
+                            progress_callback(min(1.0, s.end / info.duration), s.end, False)
+                        except Exception:
+                            pass
                 seg_list.append({
                     "id": s.id,
                     "start": round(s.start, 2),

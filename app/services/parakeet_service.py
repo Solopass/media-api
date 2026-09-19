@@ -2,8 +2,9 @@ import re
 import subprocess
 import tempfile
 import threading
+import time
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from app.config import settings
 
@@ -21,6 +22,11 @@ NATIVE_FORMATS = {".wav", ".mp3", ".flac", ".ogg"}
 TOKEN_RE = re.compile(r'^\s*\[\s*\d+\]\s.*?t0=\s*(\d+)\s+t1=\s*(\d+)\s+word_start=\w+\s+"(.*)"\s*$')
 SENTENCE_END = (".", "?", "!")
 MAX_SEGMENT_SECONDS = 30.0
+
+# parakeet-cli emits one token line per word. Reporting every one of them would
+# mean tens of thousands of job updates on a long recording, so progress is
+# emitted at most this often.
+PROGRESS_INTERVAL_SECONDS = 2.0
 
 
 def parse_tokens(stderr: str) -> List[Dict[str, Any]]:
@@ -82,7 +88,20 @@ class ParakeetService:
         return language is None or language.lower() in PARAKEET_LANGUAGES
 
     @classmethod
-    def transcribe(cls, audio_path: Path, language: Optional[str] = None) -> Dict[str, Any]:
+    def transcribe(
+        cls,
+        audio_path: Path,
+        language: Optional[str] = None,
+        progress_callback: Optional[Callable[[float, float], None]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Transcribe with parakeet-cli.
+
+        progress_callback(fraction_done, seconds_transcribed) is called at most
+        every PROGRESS_INTERVAL_SECONDS, driven by the token timestamps the CLI
+        already prints to stderr under -ps. A nine-hour recording otherwise sits
+        at one progress value for hours, which is indistinguishable from a hang.
+        """
         if not settings.parakeet_cli.exists():
             raise FileNotFoundError(f"parakeet-cli not found: {settings.parakeet_cli}")
         if not settings.parakeet_model.exists():
@@ -100,24 +119,56 @@ class ParakeetService:
                     raise RuntimeError(f"Audio conversion failed: {conv.stderr[-300:]}")
                 source = wav
 
-            res = subprocess.run(
-                [
-                    str(settings.parakeet_cli),
-                    "-m", to_windows_path(settings.parakeet_model),
-                    "-f", to_windows_path(source),
-                    "-t", str(settings.parakeet_threads),
-                    "-np", "-ps",
-                ],
-                capture_output=True,
-            )
+            # Probed up front: progress needs the total to divide by.
             duration = probe_duration(source)
 
-        stdout = res.stdout.decode("utf-8", "replace").strip()
-        stderr = res.stderr.decode("utf-8", "replace")
+            # stdout goes to a file rather than a pipe: a long transcript would
+            # otherwise fill the pipe buffer and deadlock while we read stderr.
+            stdout_file = Path(tmp) / "transcript.txt"
+            stderr_lines: List[str] = []
+            cmd = [
+                str(settings.parakeet_cli),
+                "-m", to_windows_path(settings.parakeet_model),
+                "-f", to_windows_path(source),
+                "-t", str(settings.parakeet_threads),
+                "-np", "-ps",
+            ]
+
+            with open(stdout_file, "wb") as out:
+                proc = subprocess.Popen(cmd, stdout=out, stderr=subprocess.PIPE)
+                last_emit = 0.0
+                try:
+                    for raw in iter(proc.stderr.readline, b""):
+                        line = raw.decode("utf-8", "replace").rstrip("\r\n")
+                        stderr_lines.append(line)
+                        if not (progress_callback and duration):
+                            continue
+                        match = TOKEN_RE.match(line)
+                        if not match:
+                            continue
+                        now = time.time()
+                        if now - last_emit < PROGRESS_INTERVAL_SECONDS:
+                            continue
+                        last_emit = now
+                        transcribed = int(match.group(2)) / 100
+                        try:
+                            progress_callback(min(1.0, transcribed / duration), transcribed, False)
+                        except Exception:
+                            # Progress reporting must never break transcription.
+                            pass
+                finally:
+                    if proc.stderr:
+                        proc.stderr.close()
+                    returncode = proc.wait()
+
+            stdout = stdout_file.read_text(encoding="utf-8", errors="replace").strip()
+            stderr = "\n".join(stderr_lines)
+
+        res_returncode = returncode
         # parakeet-cli exits 0 even when it cannot read the file, so an empty transcript is the failure signal.
-        if res.returncode != 0 or not stdout:
+        if res_returncode != 0 or not stdout:
             tail = " | ".join(line for line in stderr.splitlines() if not TOKEN_RE.match(line))[-400:]
-            raise RuntimeError(f"Parakeet transcription failed (exit {res.returncode}): {tail}")
+            raise RuntimeError(f"Parakeet transcription failed (exit {res_returncode}): {tail}")
 
         tokens = parse_tokens(stderr)
         segments = tokens_to_segments(tokens)

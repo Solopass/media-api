@@ -1,8 +1,13 @@
 import re
 import os
 import subprocess
+import time
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Callable, Dict, Optional
+
+# Same rationale as the STT progress interval: report often enough to look
+# alive, rarely enough to cost nothing.
+PROGRESS_INTERVAL_SECONDS = 2.0
 
 from app.config import settings
 
@@ -134,10 +139,28 @@ class FFmpegService:
         return out_file
 
     @staticmethod
-    def extract_audio(source_path: Path, target_format: str = "mp3") -> Path:
+    def extract_audio(
+        source_path: Path,
+        target_format: str = "mp3",
+        progress_callback: Optional[Callable[[float, float], None]] = None,
+    ) -> Path:
+        """
+        Extract an audio track for STT.
+
+        progress_callback(fraction_done, seconds_done) is driven by ffmpeg's own
+        -progress stream, so a multi-hour file reports continuously instead of
+        looking frozen for several minutes.
+        """
         dest_dir = settings.output_audio
         dest_dir.mkdir(parents=True, exist_ok=True)
         out_file = dest_dir / f"{source_path.stem}.{target_format}"
+
+        total_duration = 0.0
+        if progress_callback:
+            try:
+                total_duration = float(FFmpegService.probe_local_media(source_path).get("duration") or 0.0)
+            except Exception:
+                total_duration = 0.0
 
         cmd = [
             "ffmpeg", "-y",
@@ -146,11 +169,43 @@ class FFmpegService:
             "-acodec", "libmp3lame" if target_format == "mp3" else "pcm_s16le",
             "-ar", "44100",
             "-ac", "2",
-            str(out_file)
         ]
-        res = subprocess.run(cmd, capture_output=True, text=True)
-        if res.returncode != 0:
-            raise RuntimeError(f"Audio extraction failed: {res.stderr[:300]}")
+        if progress_callback and total_duration > 0:
+            cmd += ["-progress", "pipe:1", "-nostats"]
+        cmd.append(str(out_file))
+
+        if not (progress_callback and total_duration > 0):
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            if res.returncode != 0:
+                raise RuntimeError(f"Audio extraction failed: {res.stderr[:300]}")
+            return out_file
+
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        last_emit = 0.0
+        try:
+            for raw in iter(proc.stdout.readline, b""):
+                line = raw.decode("utf-8", "replace").strip()
+                if not line.startswith("out_time_ms="):
+                    continue
+                now = time.time()
+                if now - last_emit < PROGRESS_INTERVAL_SECONDS:
+                    continue
+                last_emit = now
+                try:
+                    done = int(line.split("=", 1)[1]) / 1_000_000
+                    progress_callback(min(1.0, done / total_duration), done, False)
+                except Exception:
+                    pass
+        finally:
+            if proc.stdout:
+                proc.stdout.close()
+            stderr_output = proc.stderr.read().decode("utf-8", "replace") if proc.stderr else ""
+            if proc.stderr:
+                proc.stderr.close()
+            returncode = proc.wait()
+
+        if returncode != 0:
+            raise RuntimeError(f"Audio extraction failed: {stderr_output[:300]}")
         return out_file
 
     @staticmethod

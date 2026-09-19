@@ -74,11 +74,26 @@ def run_transcribe_task(job_id: str, req: TranscribeRequest):
 
         engine = stt_service.resolve_engine(req.engine, req.language)
         job_manager.update_job(job_id, progress_percent=50.0, speed=f"Transcribing with {engine}...")
+
+        def _report(fraction: float, position_seconds: float, estimated: bool = False):
+            if job_manager.is_cancelled(job_id):
+                return
+            job_manager.update_job(
+                job_id,
+                progress_percent=round(50.0 + 45.0 * max(0.0, min(1.0, fraction)), 1),
+                speed=(
+                    f"Transcribing ({engine}) {'~' if estimated else ''}"
+                    f"{int(position_seconds // 60)}m in ({int(fraction * 100)}%"
+                    f"{' est.' if estimated else ''})"
+                ),
+            )
+
         trans_res = stt_service.transcribe(
             audio_path=audio_path,
             engine=engine,
             model_size=req.model_size,
-            language=req.language
+            language=req.language,
+            progress_callback=_report,
         )
 
         if job_manager.is_cancelled(job_id):

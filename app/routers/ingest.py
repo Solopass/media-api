@@ -1,5 +1,6 @@
 import json
 import os
+import time
 import re
 import shutil
 import logging
@@ -67,6 +68,53 @@ def _discard_source_video(candidates: list[Path], keep: Optional[Path]) -> tuple
         except Exception as e:
             logger.warning(f"[ingest] Could not remove source video {path}: {e}")
     return removed, round(freed_mb, 1)
+
+
+def _format_clock(seconds: float) -> str:
+    """Seconds as H:MM:SS or M:SS, for showing position inside a long recording."""
+    total = max(0, int(seconds))
+    hours, remainder = divmod(total, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    return f"{minutes}:{secs:02d}"
+
+
+def _format_eta(seconds: float) -> str:
+    """Coarse ETA: precision here would be false confidence."""
+    if seconds <= 0:
+        return ""
+    if seconds < 90:
+        return f"{int(seconds)}s"
+    minutes = seconds / 60
+    if minutes < 90:
+        return f"{int(round(minutes))}m"
+    return f"{minutes / 60:.1f}h"
+
+
+def _stage_progress(job_id: str, started_at: float, band_start: float, band_end: float, label: str):
+    """
+    Build a progress callback that maps a stage's 0..1 fraction onto its slice of
+    the overall pipeline bar, with a position and an ETA extrapolated from the
+    rate so far.
+    """
+    def _report(fraction: float, position_seconds: float, estimated: bool = False):
+        if job_manager.is_cancelled(job_id):
+            return
+        pct = band_start + (band_end - band_start) * max(0.0, min(1.0, fraction))
+        elapsed = time.time() - started_at
+        # "~" and "est." keep an extrapolated position from reading as measured.
+        prefix = "~" if estimated else ""
+        detail = f"{label} {prefix}{_format_clock(position_seconds)}"
+        if fraction > 0.01 and elapsed > 5:
+            eta = _format_eta((elapsed / fraction) - elapsed)
+            if eta:
+                detail += f" ({int(fraction * 100)}%{' est.' if estimated else ''}, ETA {eta})"
+        else:
+            detail += f" ({int(fraction * 100)}%)"
+        job_manager.update_job(job_id, progress_percent=round(pct, 1), speed=detail)
+
+    return _report
 
 
 def _completion_message(removed_media, freed_mb, chapters) -> str:
@@ -197,7 +245,10 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
         video_exts = {".mp4", ".mkv", ".webm", ".mov", ".avi", ".flv", ".ts", ".wmv"}
         non_native_audio = {".opus", ".wma"}
         if current_media.suffix.lower() in video_exts or current_media.suffix.lower() in non_native_audio:
-            audio_path = FFmpegService.extract_audio(current_media)
+            audio_path = FFmpegService.extract_audio(
+                current_media,
+                progress_callback=_stage_progress(job_id, time.time(), 50.0, 62.0, "Extracting audio"),
+            )
         else:
             audio_path = current_media
         partial_files["audio"] = str(audio_path)
@@ -209,7 +260,10 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
         engine = stt_service.resolve_engine(req.engine, req.language)
         job_manager.update_job(job_id, progress_percent=65.0, speed=f"Transcribing audio with {engine}...")
         trans_res = stt_service.transcribe(
-            audio_path, engine=engine, model_size=req.model_size, language=req.language
+            audio_path, engine=engine, model_size=req.model_size, language=req.language,
+            progress_callback=_stage_progress(
+                job_id, time.time(), 65.0, 84.0, f"Transcribing ({engine})"
+            ),
         )
 
         if job_manager.is_cancelled(job_id):
