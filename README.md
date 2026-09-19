@@ -44,6 +44,7 @@
 ### 5. Queue Management, Auto-Updates & Vault Explorer
 - **URL Metadata Pre-fetch**: Sub-second video card preview (title, uploader, duration, thumbnail) on typing or pasting a URL.
 - **Automatic `yt-dlp` Self-Updating**: Background checks on startup and daily ensure extractor definitions never fail against YouTube website updates.
+- **Chunked Transcription for Long Audio**: Recordings past 20 minutes are split on silence and transcribed piece by piece. `parakeet-cli` cannot decode a long file at all — a 9h05m audiobook exits 5 while decoding at any sample rate, while 4h decodes fine — so chunking is what makes multi-hour media work. It also means real per-chunk progress, cancellation that takes effect in about a second, and a failure that costs one chunk instead of the whole book.
 - **Live Stage Progress**: Long stages report continuously instead of sitting on one number for an hour. ffmpeg extraction streams its real position; transcription shows a calibrated estimate (marked `~` and `est.`) because `parakeet-cli` prints nothing until it exits. The estimate learns from every run — the workstation's measured throughput is stored and averaged, so ETAs sharpen over time.
 - **Live Job Monitor**: Real-time task progress, speeds, cancellation (`✕ Cancel`), and history purging (`Clear Finished`).
 - **Vault Explorer Tab**: Recursively scans recent markdown transcripts in `D:\AI\Vault\Transcripts`, displays tags and metadata, copies wikilinks with one click, and offers an embedded preview drawer.

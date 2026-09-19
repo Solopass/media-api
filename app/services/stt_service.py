@@ -1,11 +1,14 @@
 import json
 import logging
+import tempfile
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from app.config import settings
+from app.services import chunk_service
+from app.services.errors import TranscriptionCancelled
 from app.services.ffmpeg_service import FFmpegService
 from app.services.parakeet_service import ParakeetService
 from app.services.whisper_service import WhisperService
@@ -101,6 +104,85 @@ def _audio_duration(audio_path: Path) -> float:
         return 0.0
 
 
+def merge_chunk_results(
+    results: List[Dict[str, Any]],
+    chunks: List["chunk_service.AudioChunk"],
+    total_duration: float,
+) -> Dict[str, Any]:
+    """
+    Stitch per-chunk results back into one transcript.
+
+    Every segment time is relative to its chunk, so each is shifted by that
+    chunk's start; ids are renumbered so the note's table stays sequential.
+    """
+    segments: List[Dict[str, Any]] = []
+    texts: List[str] = []
+
+    for result, chunk in zip(results, chunks):
+        for segment in result.get("segments", []):
+            shifted = dict(segment)
+            shifted["id"] = len(segments)
+            shifted["start"] = round(float(segment.get("start", 0.0)) + chunk.start, 2)
+            shifted["end"] = round(float(segment.get("end", 0.0)) + chunk.start, 2)
+            segments.append(shifted)
+        text = (result.get("full_text") or "").strip()
+        if text:
+            texts.append(text)
+
+    first = results[0] if results else {}
+    return {
+        "engine": first.get("engine", "parakeet"),
+        "model": first.get("model", ""),
+        "language": first.get("language", "auto"),
+        "language_probability": first.get("language_probability"),
+        "duration": round(total_duration, 2),
+        "segments": segments,
+        "full_text": " ".join(texts),
+        "chunks": len(chunks),
+    }
+
+
+def _transcribe_in_chunks(
+    audio_path: Path,
+    duration: float,
+    language: Optional[str],
+    progress_callback: Optional[Callable[..., None]],
+    should_cancel: Optional[Callable[[], bool]],
+    status_callback: Optional[Callable[[str], None]],
+) -> Dict[str, Any]:
+    """Cut the recording up, transcribe piece by piece, and report real progress."""
+    with tempfile.TemporaryDirectory(dir=settings.cache_dir, prefix="stt-chunks-") as tmp:
+        if status_callback:
+            status_callback("Splitting audio into chunks...")
+        chunks = chunk_service.split(audio_path, Path(tmp), duration)
+        results: List[Dict[str, Any]] = []
+
+        for chunk in chunks:
+            if should_cancel and should_cancel():
+                raise TranscriptionCancelled("Cancelled between chunks")
+
+            def chunk_progress(fraction: float, position: float, estimated: bool = False):
+                if not progress_callback:
+                    return
+                # Chunk boundaries are measured; position inside a chunk is not.
+                overall = (chunk.index + max(0.0, min(1.0, fraction))) / len(chunks)
+                progress_callback(overall, chunk.start + position, estimated)
+
+            started = time.time()
+            with _Heartbeat(chunk.duration, chunk_progress):
+                result = ParakeetService.transcribe(
+                    chunk.path, language=language, should_cancel=should_cancel
+                )
+            record_realtime_factor(chunk.duration, time.time() - started)
+            results.append(result)
+
+            if progress_callback:
+                progress_callback((chunk.index + 1) / len(chunks), chunk.end, False)
+            logger.info(f"[stt] Chunk {chunk.index + 1}/{len(chunks)} done")
+
+        return merge_chunk_results(results, chunks, duration)
+
+
 def resolve_engine(engine: Optional[str], language: Optional[str]) -> str:
     """Pick the engine for a job. Parakeet only covers 25 European languages; other languages use faster-whisper."""
     chosen = (engine or settings.stt_engine).lower()
@@ -116,7 +198,9 @@ def transcribe(
     engine: Optional[str] = None,
     model_size: str = "tiny",
     language: Optional[str] = None,
-    progress_callback: Optional[Callable[[float, float], None]] = None,
+    progress_callback: Optional[Callable[..., None]] = None,
+    should_cancel: Optional[Callable[[], bool]] = None,
+    status_callback: Optional[Callable[[str], None]] = None,
 ) -> Dict[str, Any]:
     """
     progress_callback(fraction, seconds_transcribed, estimated) is optional.
@@ -128,16 +212,35 @@ def transcribe(
     started = time.time()
 
     if chosen == "parakeet":
-        audio_seconds = _audio_duration(audio_path) if progress_callback else 0.0
+        audio_seconds = _audio_duration(audio_path)
         try:
-            with _Heartbeat(audio_seconds, progress_callback):
-                result = ParakeetService.transcribe(audio_path, language=language)
+            # parakeet-cli cannot decode a recording of this length in one piece:
+            # a 9h file exits 5 while decoding, at any sample rate.
+            if chunk_service.needs_chunking(audio_seconds):
+                return _transcribe_in_chunks(
+                    audio_path, audio_seconds, language,
+                    progress_callback, should_cancel, status_callback,
+                )
+
+            with _Heartbeat(audio_seconds if progress_callback else 0.0, progress_callback):
+                result = ParakeetService.transcribe(
+                    audio_path, language=language, should_cancel=should_cancel
+                )
             record_realtime_factor(float(result.get("duration") or audio_seconds), time.time() - started)
             return result
+        except TranscriptionCancelled:
+            # A cancellation is not a failure: falling back here would restart
+            # on whisper the work the user just stopped.
+            raise
         except Exception as e:
-            logger.warning(
-                f"[stt] Parakeet transcription failed ({e}). Automatically falling back to faster-whisper (base)..."
+            minutes = audio_seconds / 60 if audio_seconds else 0
+            notice = (
+                f"Parakeet failed; falling back to faster-whisper (base), which is much slower"
+                + (f" - roughly {minutes / 60:.1f}h of audio to process" if minutes > 60 else "")
             )
+            logger.warning(f"[stt] Parakeet transcription failed ({e}). {notice}")
+            if status_callback:
+                status_callback(notice)
             result = WhisperService.transcribe(
                 audio_path, model_size="base", language=language, progress_callback=progress_callback
             )

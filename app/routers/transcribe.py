@@ -94,6 +94,8 @@ def run_transcribe_task(job_id: str, req: TranscribeRequest):
             model_size=req.model_size,
             language=req.language,
             progress_callback=_report,
+            should_cancel=lambda: job_manager.is_cancelled(job_id),
+            status_callback=lambda text: job_manager.update_job(job_id, speed=text),
         )
 
         if job_manager.is_cancelled(job_id):

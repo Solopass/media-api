@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from app.config import settings
+from app.services.errors import TranscriptionCancelled
 
 # Languages parakeet-tdt-0.6b-v3 was trained on. Anything else goes to faster-whisper.
 PARAKEET_LANGUAGES = {
@@ -23,10 +24,9 @@ TOKEN_RE = re.compile(r'^\s*\[\s*\d+\]\s.*?t0=\s*(\d+)\s+t1=\s*(\d+)\s+word_star
 SENTENCE_END = (".", "?", "!")
 MAX_SEGMENT_SECONDS = 30.0
 
-# parakeet-cli emits one token line per word. Reporting every one of them would
-# mean tens of thousands of job updates on a long recording, so progress is
-# emitted at most this often.
-PROGRESS_INTERVAL_SECONDS = 2.0
+# How often the main thread checks whether the job was cancelled, so stopping
+# takes effect in about a second instead of at the end of the recording.
+CANCEL_POLL_SECONDS = 1.0
 
 
 def parse_tokens(stderr: str) -> List[Dict[str, Any]]:
@@ -92,15 +92,16 @@ class ParakeetService:
         cls,
         audio_path: Path,
         language: Optional[str] = None,
-        progress_callback: Optional[Callable[[float, float], None]] = None,
+        should_cancel: Optional[Callable[[], bool]] = None,
     ) -> Dict[str, Any]:
         """
-        Transcribe with parakeet-cli.
+        Transcribe one file with parakeet-cli.
 
-        progress_callback(fraction_done, seconds_transcribed) is called at most
-        every PROGRESS_INTERVAL_SECONDS, driven by the token timestamps the CLI
-        already prints to stderr under -ps. A nine-hour recording otherwise sits
-        at one progress value for hours, which is indistinguishable from a hang.
+        The CLI reports nothing until it exits - every token line of a 4-minute
+        file arrives in a single burst at the end - so there is no progress to
+        stream. stderr is drained on a thread anyway, because a 20-minute chunk
+        produces far more than a pipe buffer holds and the child would block;
+        that leaves the main thread free to poll for cancellation and terminate.
         """
         if not settings.parakeet_cli.exists():
             raise FileNotFoundError(f"parakeet-cli not found: {settings.parakeet_cli}")
@@ -136,30 +137,39 @@ class ParakeetService:
 
             with open(stdout_file, "wb") as out:
                 proc = subprocess.Popen(cmd, stdout=out, stderr=subprocess.PIPE)
-                last_emit = 0.0
-                try:
-                    for raw in iter(proc.stderr.readline, b""):
-                        line = raw.decode("utf-8", "replace").rstrip("\r\n")
-                        stderr_lines.append(line)
-                        if not (progress_callback and duration):
-                            continue
-                        match = TOKEN_RE.match(line)
-                        if not match:
-                            continue
-                        now = time.time()
-                        if now - last_emit < PROGRESS_INTERVAL_SECONDS:
-                            continue
-                        last_emit = now
-                        transcribed = int(match.group(2)) / 100
+
+                def _drain_stderr():
+                    try:
+                        for raw in iter(proc.stderr.readline, b""):
+                            stderr_lines.append(raw.decode("utf-8", "replace").rstrip("\r\n"))
+                    except Exception:
+                        pass
+
+                drain = threading.Thread(target=_drain_stderr, name="parakeet-stderr", daemon=True)
+                drain.start()
+
+                cancelled = False
+                while proc.poll() is None:
+                    if should_cancel and should_cancel():
+                        cancelled = True
+                        proc.terminate()
                         try:
-                            progress_callback(min(1.0, transcribed / duration), transcribed, False)
-                        except Exception:
-                            # Progress reporting must never break transcription.
-                            pass
-                finally:
-                    if proc.stderr:
+                            proc.wait(timeout=10)
+                        except subprocess.TimeoutExpired:
+                            proc.kill()
+                        break
+                    time.sleep(CANCEL_POLL_SECONDS)
+
+                returncode = proc.wait()
+                drain.join(timeout=5)
+                if proc.stderr:
+                    try:
                         proc.stderr.close()
-                    returncode = proc.wait()
+                    except Exception:
+                        pass
+
+                if cancelled:
+                    raise TranscriptionCancelled(f"Transcription of {audio_path.name} cancelled")
 
             stdout = stdout_file.read_text(encoding="utf-8", errors="replace").strip()
             stderr = "\n".join(stderr_lines)

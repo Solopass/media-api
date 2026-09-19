@@ -241,7 +241,7 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
 
         # Step 3: Extract Audio & Transcribe
         stage = "Audio Extraction"
-        job_manager.update_job(job_id, progress_percent=50.0, speed="Extracting 16kHz audio for STT...")
+        job_manager.update_job(job_id, progress_percent=50.0, speed="Extracting audio...")
         video_exts = {".mp4", ".mkv", ".webm", ".mov", ".avi", ".flv", ".ts", ".wmv"}
         non_native_audio = {".opus", ".wma"}
         if current_media.suffix.lower() in video_exts or current_media.suffix.lower() in non_native_audio:
@@ -264,6 +264,8 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
             progress_callback=_stage_progress(
                 job_id, time.time(), 65.0, 84.0, f"Transcribing ({engine})"
             ),
+            should_cancel=lambda: job_manager.is_cancelled(job_id),
+            status_callback=lambda text: job_manager.update_job(job_id, speed=text),
         )
 
         if job_manager.is_cancelled(job_id):
