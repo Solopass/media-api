@@ -3569,6 +3569,7 @@
         btnResolveBatch.innerHTML = '<span class="status-dot in_progress"></span> Resolving...';
 
         state.resolvedBatchItems = [];
+        let skippedUnavailable = 0;
         try {
           for (const url of lines) {
             const isPlaylist = url.includes("list=") || url.includes("/playlist") || url.includes("/channel/") || url.includes("/@");
@@ -3581,6 +3582,7 @@
                 });
                 if (res.ok) {
                   const data = await res.json();
+                  skippedUnavailable += data.skipped_unavailable || 0;
                   if (data.items && data.items.length > 0) {
                     state.resolvedBatchItems.push(...data.items);
                     continue;
@@ -3603,6 +3605,15 @@
           if (state.resolvedBatchItems.length === 0) {
             showToast("No items could be resolved.");
             return;
+          }
+
+          const previewTitle = document.getElementById("batch-preview-title");
+          if (previewTitle) {
+            // Say plainly that dead entries were dropped, so the count adding up
+            // to less than the playlist length is not a mystery.
+            previewTitle.textContent = skippedUnavailable
+              ? `Resolved Items — ${skippedUnavailable} unavailable skipped`
+              : "Resolved Items";
           }
 
           if (batchPreviewItems) {
@@ -3670,6 +3681,11 @@
       const sourceVal = sourceInput ? sourceInput.value.trim() : "";
       if (!sourceVal) {
         showToast("Please enter a media URL or upload a file.");
+        return;
+      }
+
+      if (isCollectionUrl(sourceVal)) {
+        await divertPlaylistToBatch(sourceVal);
         return;
       }
 
@@ -4582,6 +4598,44 @@
       }
     });
 
+
+
+    // A playlist or channel URL cannot be ingested as a single item: yt-dlp
+    // expands it and picks an arbitrary entry. Mirrors is_collection_url on the
+    // server so the UI can redirect before the request is made.
+    function isCollectionUrl(value) {
+      const raw = (value || "").trim();
+      if (!/^https?:\/\//i.test(raw)) return false;
+      let parsed;
+      try {
+        parsed = new URL(raw);
+      } catch (e) {
+        return false;
+      }
+      const path = parsed.pathname.toLowerCase();
+      if (["/playlist", "/channel/", "/c/", "/user/", "/@"].some(m => path.includes(m))) return true;
+      return parsed.searchParams.has("list") && !parsed.searchParams.has("v");
+    }
+
+    // Hand a playlist URL to Batch mode and resolve it, instead of failing on it.
+    async function divertPlaylistToBatch(url) {
+      state.ingestMode = "batch";
+      const modeBatch = document.getElementById("btn-ingest-mode-batch");
+      const modeSingle = document.getElementById("btn-ingest-mode-single");
+      const singleBox = document.getElementById("ingest-single-container");
+      const batchBox = document.getElementById("ingest-batch-container");
+      const textarea = document.getElementById("ingest-batch-urls");
+
+      if (modeBatch) modeBatch.classList.add("active");
+      if (modeSingle) modeSingle.classList.remove("active");
+      if (singleBox) singleBox.style.display = "none";
+      if (batchBox) batchBox.style.display = "block";
+      if (textarea) textarea.value = url;
+
+      showToast("That is a playlist — switched to Batch mode and resolving it.", 4000);
+      const resolveBtn = document.getElementById("btn-resolve-batch");
+      if (resolveBtn) resolveBtn.click();
+    }
 
     // ---- Chapters ----------------------------------------------------------
     function chaptersVal() {

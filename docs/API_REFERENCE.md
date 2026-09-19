@@ -131,6 +131,15 @@ Fast flat extraction of a YouTube playlist, channel, or video URL into individua
 ```
 `max_items` accepts 1-500 (default 50); out-of-range values return `422`.
 
+Private, deleted and region-blocked entries are dropped from `items` and counted in
+`skipped_unavailable`. yt-dlp reports them with every field empty except the id, so they
+cannot be downloaded; including them would queue guaranteed failures.
+
+Note that `POST /api/v1/ingest` **rejects** playlist and channel URLs with `400`: they
+expand to many videos, and the single-item pipeline would otherwise hand the collection to
+yt-dlp and fail on whichever entry it picked. Expand them here first, or let the UI switch
+to Batch mode for you.
+
 **Response**:
 ```json
 {

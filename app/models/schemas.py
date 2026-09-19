@@ -125,6 +125,7 @@ class PlaylistExpandResponse(BaseModel):
     title: str
     uploader: Optional[str] = None
     total_items: int
+    skipped_unavailable: int = Field(default=0, description="Private, deleted or region-blocked entries dropped from the list")
     items: List[PlaylistItem]
 
 

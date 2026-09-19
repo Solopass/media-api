@@ -32,6 +32,28 @@ def isolate_job_store(tmp_path_factory):
         job_manager.jobs.clear()
 
 
+@pytest.fixture(scope="session", autouse=True)
+def isolate_log_file(tmp_path_factory):
+    """
+    Keep the suite out of D:\AI\Cache\logs\media-api.log.
+
+    That file is the record used to diagnose real failures, so test output
+    landing in it is worse than noise: it makes a genuine incident harder to
+    read afterwards.
+    """
+    from app.config import settings
+    from app.logging_setup import setup_logging
+
+    real_cache = settings.cache_dir
+    settings.cache_dir = tmp_path_factory.mktemp("logs-root")
+    setup_logging()
+    try:
+        yield
+    finally:
+        settings.cache_dir = real_cache
+        setup_logging()
+
+
 @pytest.fixture(autouse=True)
 def no_vault_reindex(monkeypatch):
     """Never shell out to find-concept --reindex from a test."""

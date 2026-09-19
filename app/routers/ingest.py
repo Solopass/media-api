@@ -18,7 +18,7 @@ from app.models.schemas import (
     ChaptersRequest, ChaptersResponse
 )
 from app.queue.manager import job_manager
-from app.services.ytdlp_service import YtDlpService
+from app.services.ytdlp_service import YtDlpService, is_collection_url
 from app.services.ffmpeg_service import FFmpegService
 from app.services import stt_service
 from app.services.obsidian_service import ObsidianService, summarize_with_ollama
@@ -352,6 +352,17 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
 
 @router.post("/ingest", response_model=JobResponse)
 def ingest_media(req: IngestRequest):
+    # A playlist or channel URL expands to many videos; handing it to the
+    # single-item pipeline makes yt-dlp pick an arbitrary entry, which fails
+    # confusingly when that entry happens to be unavailable.
+    if is_collection_url(req.source):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "That is a playlist or channel URL, which contains many videos. "
+                "Use Batch mode (or POST /api/v1/batch/expand-playlist) to pick and queue them."
+            )
+        )
     try:
         stt_service.resolve_engine(req.engine, req.language)
     except ValueError as e:
@@ -557,6 +568,7 @@ def expand_playlist(req: PlaylistExpandRequest):
             title=data.get("title", "Playlist"),
             uploader=data.get("uploader"),
             total_items=data.get("total_items", 0),
+            skipped_unavailable=data.get("skipped_unavailable", 0),
             items=[PlaylistItem(**item) for item in data.get("items", [])]
         )
     except Exception as e:

@@ -1,10 +1,56 @@
+import logging
 import re
 import os
+import urllib.parse
 from pathlib import Path
 from typing import Dict, Any, Optional, Callable
 import yt_dlp
 
 from app.config import settings
+
+logger = logging.getLogger("media_api")
+
+# Collection URLs resolve to many videos, so they cannot be ingested as one item.
+COLLECTION_PATH_MARKERS = ("/playlist", "/channel/", "/c/", "/user/", "/@")
+
+
+def is_collection_url(url: str) -> bool:
+    """
+    True for playlist and channel URLs, which yt-dlp expands into many entries.
+
+    A watch URL carrying both `v=` and `list=` is still one video (noplaylist
+    keeps it that way), so it is deliberately not treated as a collection.
+    """
+    if not url or not url.strip().lower().startswith(("http://", "https://")):
+        return False
+    try:
+        parsed = urllib.parse.urlparse(url.strip())
+    except Exception:
+        return False
+
+    path = (parsed.path or "").lower()
+    query = urllib.parse.parse_qs(parsed.query or "")
+
+    if any(marker in path for marker in COLLECTION_PATH_MARKERS):
+        return True
+    # ?list=... without a specific video is a playlist.
+    return "list" in query and "v" not in query
+
+
+def is_unavailable_entry(entry: Dict[str, Any]) -> bool:
+    """
+    True for private, deleted or region-blocked playlist entries.
+
+    Flat extraction reports these with every field empty except the id, so the
+    absence of a title is the reliable signal. They cannot be downloaded, and
+    presenting them as ingestible items just queues guaranteed failures.
+    """
+    title = (entry.get("title") or "").strip()
+    if not title:
+        return True
+    return title.lower() in (
+        "[private video]", "[deleted video]", "[unavailable video]", "[video unavailable]"
+    )
 
 def sanitize_filename(name: str) -> str:
     s = re.sub(r'[\\/*?:"<>|]', "", name)
@@ -159,12 +205,16 @@ class YtDlpService:
                 raise ValueError("Could not extract playlist info from URL")
 
             items = []
+            skipped_unavailable = 0
             entries = info.get("entries")
             if entries is not None:
                 playlist_title = info.get("title") or "Playlist"
                 playlist_uploader = info.get("uploader") or info.get("channel")
                 for entry in entries:
                     if not entry:
+                        continue
+                    if is_unavailable_entry(entry):
+                        skipped_unavailable += 1
                         continue
                     video_id = entry.get("id") or ""
                     entry_url = entry.get("url") or (f"https://www.youtube.com/watch?v={video_id}" if video_id else "")
@@ -184,7 +234,7 @@ class YtDlpService:
                             thumb = None
 
                     items.append({
-                        "title": entry.get("title") or (f"Video {video_id}" if video_id else "Untitled Video"),
+                        "title": entry.get("title"),
                         "url": entry_url,
                         "duration": duration,
                         "duration_formatted": duration_formatted,
@@ -213,9 +263,16 @@ class YtDlpService:
                     "uploader": playlist_uploader
                 })
 
+            if skipped_unavailable:
+                logger.info(
+                    f"[batch] Skipped {skipped_unavailable} unavailable entr"
+                    f"{'y' if skipped_unavailable == 1 else 'ies'} in {playlist_title}"
+                )
+
             return {
                 "title": playlist_title,
                 "uploader": playlist_uploader,
                 "total_items": len(items),
+                "skipped_unavailable": skipped_unavailable,
                 "items": items
             }
