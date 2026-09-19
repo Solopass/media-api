@@ -53,6 +53,105 @@ PRESET_TITLES = {
     "bullets": "Key Takeaways (Bullets)"
 }
 
+CHAPTERS_HEADING = "## 🎬 Chapters"
+
+
+def format_chapter_frontmatter(chapters: Optional[List[Dict[str, Any]]]) -> List[str]:
+    """YAML list lines for the note frontmatter, empty when there are none."""
+    if not chapters:
+        return []
+    lines = ["chapters:"]
+    for chapter in chapters:
+        title = str(chapter["title"]).replace('"', "'")
+        lines.append(f'  - "{chapter["timestamp"]} {title}"')
+    return lines
+
+
+def format_chapter_section(chapters: Optional[List[Dict[str, Any]]]) -> List[str]:
+    """Readable chapter block, timestamps styled like the transcript table."""
+    if not chapters:
+        return []
+    lines = [CHAPTERS_HEADING, ""]
+    for chapter in chapters:
+        lines.append(f"- `{chapter['timestamp']}` — **{chapter['title']}**")
+    lines.append("")
+    return lines
+
+
+class OllamaError(RuntimeError):
+    """Raised when the local LLM could not be reached or returned nothing."""
+
+
+def _ollama_chat(
+    system_instruction: str,
+    user_prompt: str,
+    model_name: str = "sol-fast",
+    label: str = "ollama",
+    temperature: float = 0.3,
+) -> str:
+    """
+    One round-trip to the local Ollama chat API.
+
+    Shared by the summary and chapter paths so the timeout, HTTPError body
+    decoding, <think>-tag stripping and timing logs live in one place.
+    Raises OllamaError; callers decide how to degrade.
+    """
+    req_data = json.dumps({
+        "model": model_name,
+        "messages": [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": user_prompt}
+        ],
+        "stream": False,
+        "options": {
+            "num_ctx": 8192,
+            "temperature": temperature,
+            "seed": 7
+        }
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        settings.ollama_api_url,
+        data=req_data,
+        headers={"Content-Type": "application/json"}
+    )
+    t0 = time.time()
+    try:
+        with urllib.request.urlopen(req, timeout=settings.ollama_timeout_seconds) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        elapsed = time.time() - t0
+        err_msg = str(e)
+        if isinstance(e, urllib.error.HTTPError):
+            try:
+                err_msg = f"{e} - {e.read().decode('utf-8', errors='replace')}"
+            except Exception:
+                pass
+        logger.warning(f"[{label}] Ollama call failed after {elapsed:.1f}s via {model_name}: {err_msg}")
+        raise OllamaError(err_msg) from e
+
+    elapsed = time.time() - t0
+    msg = data.get("message", {})
+    content = msg.get("content") or data.get("response", "")
+
+    # Strip internal <think> tags if present in raw content
+    if content:
+        import re
+        content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+
+    prompt_eval_s = data.get("prompt_eval_duration", 0) / 1e9
+    eval_s = data.get("eval_duration", 0) / 1e9
+    eval_tokens = data.get("eval_count", 0)
+    logger.info(
+        f"[{label}] Generated via {model_name} in {elapsed:.1f}s "
+        f"(prompt: {prompt_eval_s:.1f}s, gen: {eval_s:.1f}s, tokens: {eval_tokens})"
+    )
+
+    if not content:
+        raise OllamaError("Ollama returned an empty response")
+    return content
+
+
 def summarize_with_ollama(
     title: str,
     text: str,
@@ -74,59 +173,13 @@ def summarize_with_ollama(
         condensed_text = text
 
     user_prompt = f"Title: {title}\n\nTranscript:\n{condensed_text}{focus_directive}\n\nSummary:"
-    req_data = json.dumps({
-        "model": model_name,
-        "messages": [
-            {"role": "system", "content": system_instruction},
-            {"role": "user", "content": user_prompt}
-        ],
-        "stream": False,
-        "options": {
-            "num_ctx": 8192,
-            "temperature": 0.3,
-            "seed": 7
-        }
-    }).encode("utf-8")
-
-    req = urllib.request.Request(
-        settings.ollama_api_url,
-        data=req_data,
-        headers={"Content-Type": "application/json"}
-    )
-    t0 = time.time()
     try:
-        with urllib.request.urlopen(req, timeout=settings.ollama_timeout_seconds) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            elapsed = time.time() - t0
-            msg = data.get("message", {})
-            content = msg.get("content") or data.get("response", "")
-            
-            # Strip internal <think> tags if present in raw content
-            if content:
-                import re
-                content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
-
-            prompt_eval_s = data.get("prompt_eval_duration", 0) / 1e9
-            eval_s = data.get("eval_duration", 0) / 1e9
-            eval_tokens = data.get("eval_count", 0)
-            logger.info(
-                f"[summarize] Summary generated via {model_name} in {elapsed:.1f}s "
-                f"(prompt: {prompt_eval_s:.1f}s, gen: {eval_s:.1f}s, tokens: {eval_tokens})"
-            )
-
-            if content:
-                return content
+        return _ollama_chat(system_instruction, user_prompt, model_name, label="summarize")
+    except OllamaError as e:
+        if "empty" in str(e).lower():
             return "*(Ollama returned empty summary)*"
-    except Exception as e:
-        elapsed = time.time() - t0
-        err_msg = str(e)
-        if isinstance(e, urllib.error.HTTPError):
-            try:
-                err_msg = f"{e} - {e.read().decode('utf-8', errors='replace')}"
-            except Exception:
-                pass
-        logger.warning(f"[summarize] Ollama summary failed after {elapsed:.1f}s via {model_name}: {err_msg}")
-        return f"*(Automatic LLM summary unavailable: {err_msg})*"
+        return f"*(Automatic LLM summary unavailable: {e})*"
+
 
 class ObsidianService:
     @staticmethod
@@ -137,7 +190,8 @@ class ObsidianService:
         vault_subfolder: str = "Transcripts",
         custom_tags: Optional[List[str]] = None,
         summary_preset: str = "executive",
-        summary_focus: Optional[str] = None
+        summary_focus: Optional[str] = None,
+        chapters: Optional[List[Dict[str, Any]]] = None
     ) -> Path:
         import re
         stt_label = transcription.get("model") or "unknown"
@@ -188,6 +242,7 @@ class ObsidianService:
             f"duration: \"{transcription.get('duration', 0)}s\"",
             f"stt_model: \"{stt_label}\"",
             f"language: \"{transcription.get('language', 'auto')}\"",
+            *format_chapter_frontmatter(chapters),
             "---",
             "",
             f"# 🎙️ {clean_yaml_title}",
@@ -195,6 +250,7 @@ class ObsidianService:
             f"> [!abstract] **{callout_title}**",
             focus_notice + "> " + summary.replace("\n", "\n> "),
             "",
+            *format_chapter_section(chapters),
             "---",
             "",
             "## 📋 Metadata",
@@ -348,6 +404,66 @@ class ObsidianService:
                 pass
 
         return vault_file
+
+
+    @staticmethod
+    def update_note_chapters(
+        note_path: Path,
+        chapters: List[Dict[str, Any]]
+    ) -> bool:
+        """
+        Write chapters into an existing note, in both forms, without duplicating.
+
+        Replaces the frontmatter list and the chapter section when they exist,
+        otherwise inserts them after the summary callout.
+        """
+        import re
+        if not note_path.exists() or not chapters:
+            return False
+
+        content = note_path.read_text(encoding="utf-8")
+
+        # --- frontmatter list -------------------------------------------------
+        front_block = "\n".join(format_chapter_frontmatter(chapters))
+        existing_front = re.search(r"^chapters:\n(?:  - .*\n)+", content, flags=re.MULTILINE)
+        if existing_front:
+            content = content[:existing_front.start()] + front_block + "\n" + content[existing_front.end():]
+        else:
+            # Insert before the closing delimiter of the YAML frontmatter.
+            front_end = re.search(r"\A---\n.*?\n(---)\n", content, flags=re.DOTALL)
+            if front_end:
+                at = front_end.start(1)
+                content = content[:at] + front_block + "\n" + content[at:]
+
+        # --- readable section -------------------------------------------------
+        section_block = "\n".join(format_chapter_section(chapters)).rstrip() + "\n"
+        existing_section = re.search(
+            re.escape(CHAPTERS_HEADING) + r".*?(?=\n\n---|\n\n##|\Z)",
+            content,
+            flags=re.DOTALL
+        )
+        if existing_section:
+            content = content[:existing_section.start()] + section_block.rstrip() + content[existing_section.end():]
+        else:
+            callout = re.search(r"> \[!abstract\].*?(?=\n\n---|\n\n##|\Z)", content, flags=re.DOTALL)
+            if callout:
+                at = callout.end()
+                content = content[:at] + "\n\n" + section_block.rstrip() + content[at:]
+            else:
+                title_match = re.search(r"(# 🎙️ .*\n)", content)
+                if title_match:
+                    at = title_match.end()
+                    content = content[:at] + "\n" + section_block + content[at:]
+                else:
+                    content = section_block + "\n" + content
+
+        note_path.write_text(content, encoding="utf-8")
+
+        mirror_file = settings.output_transcripts / note_path.name
+        if mirror_file.exists():
+            mirror_file.write_text(content, encoding="utf-8")
+
+        return True
 
     @staticmethod
     def update_note_summary(

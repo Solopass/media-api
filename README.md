@@ -17,6 +17,7 @@
   - `bullets`: Dense, high-signal bulleted takeaways with bold lead-ins.
 - **Topical Focus Guidance**: Inject custom user instructions into the local LLM prompt (`summary_focus`).
 - **Automatic Source Video Cleanup**: The video a job produced (download, clip intermediate, or upload-cache copy) is deleted once the vault note is written, so `D:\Output\Videos` does not grow unbounded — cancelled and failed runs reclaim theirs too. Flip **Keep Source Video** in the UI (or `"keep_video": true`) to retain it. Extracted audio and the `.transcript.json` sidecar are always kept for the in-app player, and a file the job did not produce is never deleted, so re-ingesting one of your own videos by path leaves it alone.
+- **Automatic Chapter Markers**: Flip **Generate Chapters** to add YouTube-style markers (`00:00 Intro`, `03:45 Architecture`) to the note — as a `chapters:` frontmatter list *and* a readable `## 🎬 Chapters` section — or add them to any existing note from the Vault Explorer. Chapters are click-to-seek in the in-app player and copy out as a paste-ready description block. The model is fed a timestamped digest sampled across the whole recording, and every timestamp it returns is validated against the real duration, so a bad generation yields no chapters rather than wrong ones.
 - **Per-Job Language Override**: Leave **Language** empty to auto-detect, or pass a code (`en`, `es`, `ja`). Parakeet covers 25 European languages; anything else routes to faster-whisper automatically.
 - **Obsidian Second Brain Integration**: Automatically creates formatted notes in `D:\AI\Vault\Transcripts/` with YAML frontmatter, summary callouts (`> [!abstract]`), timestamped transcript tables, deep-links (`obsidian://open?...`), and non-blocking semantic vector re-indexing (`find-concept --reindex`).
 
@@ -79,8 +80,7 @@ When testing tomorrow, consider exploring these potential enhancements:
 
 1. **Speaker Diarization (Multi-Speaker Labeling)**:
    - Integrate PyAnnote / WhisperX to identify distinct speakers (e.g. `Speaker A`, `Speaker B`) in transcript tables and exports.
-2. **Automated YouTube Video Chapters**:
-   - Leverage Ollama to generate YouTube-compatible chapter timestamps (`00:00 Intro`, `03:45 Architecture`, etc.) directly into note frontmatter.
+2. ~~**Automated YouTube Video Chapters**~~ — shipped; see **Automatic Chapter Markers** above.
 3. **Live Streaming STT (WebSocket)**:
    - Provide real-time microphone dictation directly into the Studio and Obsidian.
 4. **PDF / Document Report Export**:

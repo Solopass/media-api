@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from app.config import settings
 from app.main import app
 from app.models.schemas import IngestRequest, JobStatus
-from app.paths import MEDIA_ROOTS, NOTE_ROOTS, is_path_allowed
+from app.paths import is_path_allowed, media_roots, note_roots
 from app.queue.manager import JobQueueManager, SAVE_THROTTLE_SECONDS
 from app.routers import ingest as ingest_mod
 
@@ -418,13 +418,13 @@ def test_resummarize_rejects_non_markdown_targets():
 
 
 def test_media_roots_exclude_the_cache_root():
-    assert is_path_allowed(settings.uploads_dir / "clip.mp4", MEDIA_ROOTS) is True
-    assert is_path_allowed(Path("/mnt/d/Output/Audio/clip.mp3"), MEDIA_ROOTS) is True
+    assert is_path_allowed(settings.uploads_dir / "clip.mp4", media_roots()) is True
+    assert is_path_allowed(Path("/mnt/d/Output/Audio/clip.mp3"), media_roots()) is True
     # cookies.txt and agent session history live in the cache root.
-    assert is_path_allowed(Path("/mnt/d/AI/Cache/cookies.txt"), MEDIA_ROOTS) is False
-    assert is_path_allowed(Path("/etc/passwd"), MEDIA_ROOTS) is False
+    assert is_path_allowed(Path("/mnt/d/AI/Cache/cookies.txt"), media_roots()) is False
+    assert is_path_allowed(Path("/etc/passwd"), media_roots()) is False
 
 
 def test_note_roots_reject_traversal():
     escape = Path("/mnt/d/AI/Vault/Transcripts/../../../etc/passwd")
-    assert is_path_allowed(escape, NOTE_ROOTS) is False
+    assert is_path_allowed(escape, note_roots()) is False

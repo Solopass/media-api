@@ -14,15 +14,17 @@ from datetime import datetime
 
 from app.models.schemas import (
     IngestRequest, JobResponse, JobStatus, ResummarizeRequest, ResummarizeResponse,
-    PlaylistExpandRequest, PlaylistExpandResponse, PlaylistItem
+    PlaylistExpandRequest, PlaylistExpandResponse, PlaylistItem,
+    ChaptersRequest, ChaptersResponse
 )
 from app.queue.manager import job_manager
 from app.services.ytdlp_service import YtDlpService
 from app.services.ffmpeg_service import FFmpegService
 from app.services import stt_service
 from app.services.obsidian_service import ObsidianService, summarize_with_ollama
+from app.services import chapters_service
 from app.config import settings, normalize_path
-from app.paths import NOTE_ROOTS, is_inside, is_path_allowed
+from app.paths import is_inside, is_path_allowed, note_roots
 
 logger = logging.getLogger("media_api")
 
@@ -65,6 +67,16 @@ def _discard_source_video(candidates: list[Path], keep: Optional[Path]) -> tuple
         except Exception as e:
             logger.warning(f"[ingest] Could not remove source video {path}: {e}")
     return removed, round(freed_mb, 1)
+
+
+def _completion_message(removed_media, freed_mb, chapters) -> str:
+    """Status line for the UI: what was written, and what was reclaimed."""
+    parts = ["Completed successfully"]
+    if chapters:
+        parts.append(f"{len(chapters)} chapters")
+    if removed_media:
+        parts.append(f"source video deleted, {freed_mb:.0f} MB freed")
+    return parts[0] if len(parts) == 1 else f"{parts[0]} ({' · '.join(parts[1:])})"
 
 
 def _trigger_reindex():
@@ -230,6 +242,21 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
         if job_manager.is_cancelled(job_id):
             return
 
+        # Step 4b: Optional chapter markers (a second, separate LLM pass)
+        chapters = []
+        if req.generate_chapters:
+            stage = "Chapter Generation"
+            job_manager.update_job(job_id, progress_percent=90.0, speed="Generating chapter markers...")
+            chapters = chapters_service.generate_chapters(
+                title=media_info["title"],
+                segments=trans_res.get("segments", []),
+                duration=float(trans_res.get("duration") or 0.0),
+                model_name=req.llm_model
+            )
+
+        if job_manager.is_cancelled(job_id):
+            return
+
         # Step 5: Save Note directly to Obsidian Vault Transcripts
         stage = "Writing Obsidian Vault Note"
         job_manager.update_job(job_id, progress_percent=95.0, speed="Writing Obsidian Vault Note...")
@@ -241,7 +268,8 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
             vault_subfolder=clean_sub,
             custom_tags=req.tags,
             summary_preset=req.summary_preset,
-            summary_focus=req.summary_focus
+            summary_focus=req.summary_focus,
+            chapters=chapters
         )
 
         # Step 6: Discard the source video unless the user asked to keep it
@@ -260,16 +288,24 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
         if current_media.exists():
             out_files["media"] = str(current_media)
         if out_json and Path(out_json).exists():
+            # Re-write the sidecar now that chapters exist, so the UI can render
+            # them without parsing the markdown note.
+            if chapters:
+                try:
+                    sidecar = json.loads(Path(out_json).read_text(encoding="utf-8"))
+                    sidecar["chapters"] = chapters
+                    Path(out_json).write_text(
+                        json.dumps(sidecar, ensure_ascii=False, indent=1), encoding="utf-8"
+                    )
+                except Exception as e:
+                    logger.warning(f"[ingest] Could not add chapters to sidecar: {e}")
             out_files["transcript_json"] = str(out_json)
 
         job_manager.update_job(
             job_id,
             status=JobStatus.COMPLETED,
             progress_percent=100.0,
-            speed=(
-                f"Completed successfully (source video deleted, {freed_mb:.0f} MB freed)"
-                if removed_media else "Completed successfully"
-            ),
+            speed=_completion_message(removed_media, freed_mb, chapters),
             obsidian_link=f"[[Agent/{clean_sub}/{vault_note.stem}]]",
             obsidian_uri=f"obsidian://open?vault={settings.vault_name}&file={encoded_note}",
             output_files=out_files
@@ -351,7 +387,7 @@ def resummarize_note(req: ResummarizeRequest):
     # This endpoint rewrites the file in place, so it is held to the same roots
     # as /vault/note - and to Markdown, since a note without an abstract callout
     # gets the new summary prepended.
-    if not is_path_allowed(target_file, NOTE_ROOTS):
+    if not is_path_allowed(target_file, note_roots()):
         raise HTTPException(status_code=403, detail="Access denied: path outside Obsidian vault")
     if target_file.suffix.lower() != ".md":
         raise HTTPException(status_code=400, detail="Target is not a Markdown note")
@@ -410,6 +446,101 @@ def resummarize_note(req: ResummarizeRequest):
         model=req.llm_model,
         preset=req.summary_preset
     )
+
+def _load_segments_for_note(content: str, target_file: Path):
+    """
+    Recover timestamped segments for an existing note.
+
+    Prefers the .transcript.json sidecar; falls back to the note's own
+    timestamped table, which gives coarser but still usable anchors.
+    """
+    source_match = re.search(r"- \*\*Source Media\*\*:\s*`([^`]+)`", content)
+    if source_match:
+        stem = Path(source_match.group(1)).stem
+        for directory in (settings.output_audio, settings.output_transcripts, settings.output_videos):
+            candidate = directory / f"{stem}.transcript.json"
+            if candidate.exists():
+                try:
+                    data = json.loads(candidate.read_text(encoding="utf-8"))
+                    segments = data.get("segments") or []
+                    if segments:
+                        duration = float(data.get("duration") or 0.0)
+                        if not duration:
+                            duration = max(float(s.get("end") or s.get("start") or 0) for s in segments)
+                        return segments, duration, candidate
+                except Exception:
+                    continue
+
+    rows = re.findall(r"\|\s*`(\d+):(\d+)`\s*\|\s*(.*?)\s*\|", content)
+    if rows:
+        segments = [
+            {"start": int(m) * 60 + int(sec), "end": int(m) * 60 + int(sec) + 1, "text": text}
+            for m, sec, text in rows
+        ]
+        duration = segments[-1]["start"] if segments else 0.0
+        return segments, float(duration), None
+
+    return [], 0.0, None
+
+
+@router.post("/vault/chapters", response_model=ChaptersResponse)
+def generate_note_chapters(req: ChaptersRequest):
+    """Generate chapter markers for an existing transcript note, in place."""
+    raw_path = req.note_path.strip()
+    target_file = normalize_path(raw_path)
+
+    if not target_file.exists():
+        for base in (settings.vault_transcripts, settings.output_transcripts):
+            candidate = base / raw_path
+            if candidate.exists():
+                target_file = candidate
+                break
+        else:
+            raise HTTPException(status_code=404, detail=f"Note file not found: {raw_path}")
+
+    if not is_path_allowed(target_file, note_roots()):
+        raise HTTPException(status_code=403, detail="Access denied: path outside Obsidian vault")
+    if target_file.suffix.lower() != ".md":
+        raise HTTPException(status_code=400, detail="Target is not a Markdown note")
+
+    content = target_file.read_text(encoding="utf-8")
+    title_match = re.search(r"^title:\s*\"?(.*?)\"?$", content, re.MULTILINE)
+    title = title_match.group(1) if title_match else target_file.stem
+
+    segments, duration, sidecar_path = _load_segments_for_note(content, target_file)
+    if not segments:
+        raise HTTPException(
+            status_code=400,
+            detail="No timestamped transcript found for this note (sidecar missing and no transcript table)"
+        )
+
+    chapters = chapters_service.generate_chapters(
+        title=title, segments=segments, duration=duration, model_name=req.llm_model
+    )
+    if not chapters:
+        raise HTTPException(
+            status_code=422,
+            detail="The model did not return usable chapter markers for this transcript"
+        )
+
+    ObsidianService.update_note_chapters(target_file, chapters)
+
+    if sidecar_path and sidecar_path.exists():
+        try:
+            data = json.loads(sidecar_path.read_text(encoding="utf-8"))
+            data["chapters"] = chapters
+            sidecar_path.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+        except Exception as e:
+            logger.warning(f"[chapters] Could not update sidecar {sidecar_path}: {e}")
+
+    return ChaptersResponse(
+        success=True,
+        note_path=str(target_file),
+        chapters=chapters,
+        youtube_block=chapters_service.to_youtube_block(chapters),
+        model=req.llm_model
+    )
+
 
 @router.post("/batch/expand-playlist", response_model=PlaylistExpandResponse)
 def expand_playlist(req: PlaylistExpandRequest):

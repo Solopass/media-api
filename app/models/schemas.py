@@ -52,6 +52,7 @@ class IngestRequest(BaseModel):
     vault_subfolder: str = Field(default="Transcripts", description="Subfolder path inside D:\\AI\\Vault")
     tags: list[str] = Field(default_factory=list, description="Custom tags for Obsidian YAML frontmatter")
     keep_video: bool = Field(default=False, description="Keep the downloaded source video after transcription (default: delete it; extracted audio and transcript are always kept)")
+    generate_chapters: bool = Field(default=False, description="Also generate YouTube-style chapter markers (a second local LLM pass)")
     priority: str = Field(default="normal", description="Queue priority")
 
 class ConfigIdleRequest(BaseModel):
@@ -189,3 +190,22 @@ class StorageReclaimResponse(BaseModel):
     freed_bytes: int = 0
     freed_mb: float = 0.0
     errors: List[str] = []
+
+
+class Chapter(BaseModel):
+    start: float
+    timestamp: str
+    title: str
+
+
+class ChaptersRequest(BaseModel):
+    note_path: str = Field(..., description="Path or filename of an existing transcript note")
+    llm_model: str = Field(default="sol-fast", description="Local LLM model to query")
+
+
+class ChaptersResponse(BaseModel):
+    success: bool
+    note_path: str
+    chapters: List[Chapter]
+    youtube_block: str
+    model: str

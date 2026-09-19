@@ -62,7 +62,8 @@ One-shot ingestion pipeline:
   "summary_focus": "key architectural decisions and performance metrics",
   "vault_subfolder": "Transcripts/Meetings",
   "tags": ["architecture", "review"],
-  "keep_video": false
+  "keep_video": false,
+  "generate_chapters": false
 }
 ```
 **Source Video Retention** (`keep_video`, default `false`):
@@ -163,7 +164,46 @@ The target must resolve inside the Obsidian vault roots (`D:\AI\Vault`, `D:\OBVL
 
 Replaces the `> [!abstract]` callout in-place while preserving YAML frontmatter, headers, and timestamped transcripts.
 
-### 7. `GET /api/v1/storage` & `POST /api/v1/storage/reclaim`
+### 7. `POST /api/v1/vault/chapters`
+Generate YouTube-style chapter markers for an existing transcript note, in place:
+```json
+{
+  "note_path": "2026-09-18_170027_Autistic_Dating_Differences_Explained.md",
+  "llm_model": "sol-fast"
+}
+```
+**Response** carries both the structured chapters and a paste-ready block:
+```json
+{
+  "success": true,
+  "chapters": [
+    { "start": 0.0, "timestamp": "00:00", "title": "Hydration Reminder" },
+    { "start": 94.0, "timestamp": "01:34", "title": "Autistic Dating Overview" }
+  ],
+  "youtube_block": "00:00 Hydration Reminder\n01:34 Autistic Dating Overview",
+  "model": "sol-fast"
+}
+```
+How it stays accurate:
+- The model is shown a **timestamped digest** — the transcript downsampled into
+  `[MM:SS] text` lines spread evenly across the whole recording, so chapters cover the
+  middle of a long video instead of clustering where the text happened to be truncated.
+- **Nothing returned is trusted**: timestamps past the real duration are dropped, order is
+  repaired, near-duplicates are merged, the first chapter is forced to `00:00`, and the
+  count is capped at 20. Fewer than 2 survivors returns `422` rather than writing a bad
+  chapter list into the vault.
+- Segments come from the `.transcript.json` sidecar, falling back to the note's own
+  timestamped table when the sidecar is gone.
+- Same guards as `/vault/resummarize`: vault roots and `.md` only (`403` / `400`), and
+  `404` when the note does not exist.
+
+Chapters are written to the note in **both** forms — a `chapters:` YAML list in the
+frontmatter and a readable `## 🎬 Chapters` section — and added to the sidecar. Re-running
+replaces both rather than duplicating.
+
+During ingest, set `"generate_chapters": true` (a second local LLM pass; off by default).
+
+### 8. `GET /api/v1/storage` & `POST /api/v1/storage/reclaim`
 Per-category accounting of the API's own output directories, plus age-based cleanup.
 
 `GET /api/v1/storage` (add `?refresh=true` to bypass the 30s scan cache):
@@ -206,7 +246,7 @@ Categories: `videos`, `audio`, `uploads` (reclaimable) and `sidecars`, `note_mir
 
 Responses carry exact byte counts (`total_bytes`, `freed_bytes`) alongside the rounded MB.
 
-### 8. `GET /api/v1/models` (GPU VRAM & Model Headroom)
+### 9. `GET /api/v1/models` (GPU VRAM & Model Headroom)
 Returns available Ollama LLM models enriched with memory footprint assessments against dedicated GPU VRAM:
 ```json
 {

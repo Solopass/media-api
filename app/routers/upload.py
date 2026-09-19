@@ -8,13 +8,10 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 
 from app.config import settings, normalize_path, to_windows_path
-from app.paths import MEDIA_EXTENSIONS, MEDIA_ROOTS, NOTE_ROOTS, is_path_allowed
+from app.paths import MEDIA_EXTENSIONS, is_path_allowed, media_roots, note_roots
 
 router = APIRouter(prefix="/api/v1", tags=["Media Upload & Streaming"])
 
-# Kept as module aliases for readability at the call sites below.
-ALLOWED_MEDIA_ROOTS = MEDIA_ROOTS
-ALLOWED_NOTE_ROOTS = NOTE_ROOTS
 ALLOWED_EXTENSIONS = MEDIA_EXTENSIONS
 
 def _sanitize_filename(name: str) -> str:
@@ -63,7 +60,7 @@ def stream_media(path: str = Query(..., description="File path to stream")):
     """Stream audio/video file with HTTP Range support for HTML5 players."""
     target_path = normalize_path(path)
 
-    if not _is_path_allowed(target_path, ALLOWED_MEDIA_ROOTS):
+    if not _is_path_allowed(target_path, media_roots()):
         raise HTTPException(status_code=403, detail="Access denied: path outside permitted media directories")
 
     if not target_path.exists() or not target_path.is_file():
@@ -90,7 +87,7 @@ def get_vault_note(path: str = Query(..., description="Path to markdown note in 
     """Retrieve Obsidian markdown note content and deep-link details."""
     target_path = normalize_path(path)
 
-    if not _is_path_allowed(target_path, ALLOWED_NOTE_ROOTS):
+    if not _is_path_allowed(target_path, note_roots()):
         raise HTTPException(status_code=403, detail="Access denied: path outside Obsidian vault")
 
     if not target_path.exists() or not target_path.is_file():

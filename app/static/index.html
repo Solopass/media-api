@@ -581,6 +581,25 @@
       box-shadow: 0 4px 12px rgba(124, 58, 237, 0.45);
     }
 
+
+    .chapter-row {
+      display: flex;
+      align-items: baseline;
+      gap: 0.6rem;
+      width: 100%;
+      text-align: left;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      padding: 0.35rem 0.6rem;
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .chapter-row:hover { border-color: var(--primary); }
+    .chapter-row code { color: var(--primary); font-size: 0.76rem; }
+
     /* Storage & Reclaim overlay (opened from the D: Drive telemetry chip) */
     .storage-backdrop {
       position: fixed;
@@ -1432,7 +1451,14 @@
                     <span class="slider"></span>
                   </label>
                 </label>
-                <div class="hint" style="font-size: 0.73rem; color: var(--text-muted); margin-top: 0.25rem;">Off: the downloaded video is deleted after the note is written. Audio + transcript are always kept.</div>
+                <label class="switch-label" style="margin-top: 0.5rem;">
+                  <span>Generate Chapters</span>
+                  <label class="switch">
+                    <input type="checkbox" id="ingest-generate-chapters">
+                    <span class="slider"></span>
+                  </label>
+                </label>
+                <div class="hint" style="font-size: 0.73rem; color: var(--text-muted); margin-top: 0.25rem;">Keep Source Video off: the download is deleted once the note is written (audio + transcript always kept). Chapters add a second LLM pass.</div>
               </div>
               <div class="form-group" id="group-llm-model">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
@@ -1559,6 +1585,9 @@
                   <svg class="icon" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                   Copy Note
                 </button>
+                <button type="button" class="btn-header-action" id="btn-note-chapters" title="Generate YouTube-style chapter markers for this note">
+                  🎬 Chapters
+                </button>
                 <button type="button" class="btn-header-action" id="btn-resummarize" title="Re-run or generate AI summary for this note with selected model">
                   <svg class="icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
                   Re-Summarize
@@ -1572,6 +1601,14 @@
                   <button type="button" class="btn-header-action" id="btn-close-note-preview" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">✕ Close</button>
                 </div>
                 <pre id="ingest-preview-content" class="note-preview-content"></pre>
+              </div>
+
+              <div id="ingest-chapters-container" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; gap: 0.4rem;">
+                  <span class="hint">Chapters (click to seek)</span>
+                  <button type="button" class="btn-sm" id="btn-copy-chapters" title="Copy as a YouTube description block">Copy for YouTube</button>
+                </div>
+                <div id="ingest-chapters-list" style="display: flex; flex-direction: column; gap: 0.2rem; margin-bottom: 0.75rem;"></div>
               </div>
 
               <div id="ingest-summary-container">
@@ -3009,7 +3046,8 @@
               vault_subfolder: subfolderVal,
               tags: tagsVal,
               keep_video: keepVideoVal(),
-              language: languageVal()
+              language: languageVal(),
+              generate_chapters: chaptersVal()
             };
             const res = await fetch("/api/v1/ingest", {
               method: "POST",
@@ -3144,7 +3182,8 @@
             vault_subfolder: subfolderVal,
             tags: tagsVal,
             keep_video: keepVideoVal(),
-            language: languageVal()
+            language: languageVal(),
+            generate_chapters: chaptersVal()
           };
 
           const res = await fetch("/api/v1/ingest", {
@@ -3367,6 +3406,14 @@
         if (closePreviewBtn) {
           closePreviewBtn.onclick = () => {
             document.getElementById("ingest-note-preview-drawer").style.display = "none";
+          };
+        }
+
+        const chaptersBtn = document.getElementById("btn-note-chapters");
+        if (chaptersBtn) {
+          chaptersBtn.onclick = async () => {
+            await generateChaptersForNote(vaultNotePath);
+            loadNoteDetails(vaultNotePath);
           };
         }
 
@@ -3642,7 +3689,8 @@
         vault_subfolder: subfolderVal,
         tags: tagsVal,
         keep_video: keepVideoVal(),
-        language: languageVal()
+        language: languageVal(),
+        generate_chapters: chaptersVal()
       };
 
       btn.disabled = true;
@@ -3717,6 +3765,7 @@
                   if (trRes.ok) {
                     const trData = await trRes.json();
                     state.lastIngestTranscript = trData;
+                    renderChapters(trData.chapters || []);
                     const segContainer = document.getElementById("ingest-segments-container");
                     const segList = document.getElementById("ingest-segments-list");
                     segContainer.style.display = "block";
@@ -4433,6 +4482,85 @@
         closeStoragePanel();
       }
     });
+
+
+    // ---- Chapters ----------------------------------------------------------
+    function chaptersVal() {
+      const el = document.getElementById("ingest-generate-chapters");
+      return !!(el && el.checked);
+    }
+
+    // Kept for the Copy-for-YouTube button and for seeking.
+    state.chapters = [];
+
+    function renderChapters(chapters, playerId = "ingest-audio") {
+      const container = document.getElementById("ingest-chapters-container");
+      const list = document.getElementById("ingest-chapters-list");
+      if (!container || !list) return;
+
+      state.chapters = chapters || [];
+      if (!state.chapters.length) {
+        container.style.display = "none";
+        list.innerHTML = "";
+        return;
+      }
+
+      list.innerHTML = state.chapters.map((c, i) => `
+        <button type="button" class="chapter-row" data-chapter="${i}" data-player="${escapeHtml(playerId)}">
+          <code>${escapeHtml(c.timestamp)}</code>
+          <span>${escapeHtml(c.title)}</span>
+        </button>
+      `).join("");
+
+      list.querySelectorAll(".chapter-row").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const chapter = state.chapters[parseInt(btn.dataset.chapter, 10)];
+          const player = document.getElementById(btn.dataset.player);
+          if (chapter && player) {
+            player.currentTime = chapter.start;
+            player.play().catch(() => {});
+          }
+        });
+      });
+
+      container.style.display = "block";
+    }
+
+    async function copyChaptersForYouTube() {
+      if (!state.chapters.length) return;
+      const block = state.chapters.map(c => `${c.timestamp} ${c.title}`).join("\n");
+      try {
+        await navigator.clipboard.writeText(block);
+        showToast(`Copied ${state.chapters.length} chapters for YouTube`);
+      } catch (err) {
+        showToast("Could not copy: " + err.message);
+      }
+    }
+
+    async function generateChaptersForNote(notePath) {
+      const btn = document.getElementById("btn-note-chapters");
+      const model = document.getElementById("ingest-llm-model");
+      if (btn) { btn.disabled = true; btn.textContent = "Generating..."; }
+      try {
+        const res = await fetch("/api/v1/vault/chapters", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            note_path: notePath,
+            llm_model: model ? model.value : "sol-fast"
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Chapter generation failed");
+        showToast(`Added ${data.chapters.length} chapters to the note`);
+      } catch (err) {
+        showToast("Chapters: " + err.message, 5000);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = "🎬 Chapters"; }
+      }
+    }
+
+    document.getElementById("btn-copy-chapters").addEventListener("click", copyChaptersForYouTube);
 
     // Initialize
     setupUploadTarget("ingest-upload-btn", "ingest-file-input", "ingest-source", "ingest-upload-progress", "ingest-upload-progress-fill", "ingest-upload-progress-text");

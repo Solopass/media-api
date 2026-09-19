@@ -11,22 +11,36 @@ from pathlib import Path
 
 from app.config import settings
 
-# Streamable media and sidecars. Only the uploads subdirectory of the AI cache
-# is included: the cache root also holds cookies.txt, agent session history and
-# browser profiles, none of which belong on an HTTP endpoint.
-MEDIA_ROOTS = [
-    Path("/mnt/d/Output"),
-    settings.uploads_dir,
-    Path("/mnt/d/AI/Vault"),
-    Path("/mnt/d/OBVLT"),
-]
+def media_roots() -> list[Path]:
+    """
+    Streamable media and sidecars.
 
-# Markdown notes, for reading and for in-place summary rewrites.
-NOTE_ROOTS = [
-    Path("/mnt/d/AI/Vault"),
-    Path("/mnt/d/Output/Transcripts"),
-    Path("/mnt/d/OBVLT"),
-]
+    Only the uploads subdirectory of the AI cache is included: the cache root
+    also holds cookies.txt, agent session history and browser profiles, none of
+    which belong on an HTTP endpoint.
+
+    Built per call from settings, like storage_service._scan_roots, so the
+    allow-list follows a relocated output or vault directory instead of locking
+    the user out of their own files.
+    """
+    return [
+        settings.output_videos.parent,
+        settings.output_audio.parent,
+        settings.uploads_dir,
+        settings.vault_transcripts,
+        Path("/mnt/d/AI/Vault"),
+        Path("/mnt/d/OBVLT"),
+    ]
+
+
+def note_roots() -> list[Path]:
+    """Markdown notes, for reading and for in-place rewrites."""
+    return [
+        settings.vault_transcripts,
+        settings.output_transcripts,
+        Path("/mnt/d/AI/Vault"),
+        Path("/mnt/d/OBVLT"),
+    ]
 
 MEDIA_EXTENSIONS = {
     ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg",
