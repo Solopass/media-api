@@ -11,13 +11,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.responses import FileResponse
+from starlette.responses import FileResponse, JSONResponse
 from starlette.staticfiles import StaticFiles
 
 from app.config import settings
+from app.logging_setup import setup_logging
 from app.queue.manager import job_manager
 from app.models.schemas import ShutdownRequest, ShutdownResponse, ConfigIdleRequest
-from app.routers import media, transcribe, ingest, jobs, upload, storage
+from app.routers import media, transcribe, ingest, jobs, upload, storage, diagnostics
 from app.services.updater_service import UpdaterService
 from app.services.gpu_service import GpuService
 
@@ -25,7 +26,11 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
+# Also write to D:, so a failure survives the WSL VM being torn down and can be
+# read without journalctl.
+LOG_FILE = setup_logging()
 logger = logging.getLogger("media_api")
+logger.info(f"[startup] Logging to {LOG_FILE}")
 
 async def idle_watchdog():
     """Monitors activity and automatically shuts down when idle to free all host RAM and threads."""
@@ -89,6 +94,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.exception_handler(Exception)
+async def log_unhandled_exception(request: Request, exc: Exception):
+    """Nothing should fail silently: record the route and traceback."""
+    logger.exception(f"[unhandled] {request.method} {request.url.path}: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal error: {exc}"}
+    )
+
+
 @app.middleware("http")
 async def track_activity_middleware(request: Request, call_next):
     # Passive health pings do not postpone the auto-close watchdog
@@ -103,6 +118,7 @@ app.include_router(ingest.router)
 app.include_router(jobs.router)
 app.include_router(upload.router)
 app.include_router(storage.router)
+app.include_router(diagnostics.router)
 
 static_dir = settings.workspace_dir / "app" / "static"
 static_dir.mkdir(parents=True, exist_ok=True)
@@ -238,7 +254,8 @@ def root(request: Request):
             "/api/v1/jobs",
             "/api/v1/shutdown",
             "/api/v1/models",
-            "/api/v1/storage"
+            "/api/v1/storage",
+            "/api/v1/diagnostics"
         ]
     }
 

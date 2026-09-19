@@ -2188,6 +2188,7 @@
 
         statusDot.classList.remove("offline");
         txtStatus.textContent = "Online (" + data.workstation + ")";
+        flushClientLogs();
         valStorage.textContent = data.storage ? `${data.storage.d_drive_free_gb} GB Free` : "D: Free";
         if (data.ytdlp_version && valYtdlp) valYtdlp.textContent = data.ytdlp_version;
         valIdle.textContent = `${data.idle_seconds}s / ${data.idle_timeout_seconds}s`;
@@ -2207,6 +2208,17 @@
           fetchJobs();
         }
       } catch (err) {
+        if (!statusDot.classList.contains("offline")) {
+          // Only on the transition, so a sleeping server does not spam the log.
+          bufferClientLog({
+            level: "warning",
+            message: `Server became unreachable: ${err.message}`,
+            context: "health-poll",
+            url: "/api/v1/health",
+            stack: null,
+            buffered_at: new Date().toISOString()
+          });
+        }
         statusDot.classList.add("offline");
         txtStatus.textContent = "Offline / Idle";
         valIdle.textContent = "--";
@@ -3237,6 +3249,9 @@
           });
         } catch (err) {
           console.error(`Batch URL processing error for ${item.url}`, err);
+          reportClientError(`Batch item failed: ${err.message}`, "batch-url-ingest", {
+            url: item.url, stack: err.stack
+          });
           if (statusEl) {
             statusEl.className = "pill failed";
             statusEl.textContent = "Error";
@@ -4339,6 +4354,89 @@
     });
 
 
+
+    // ---- Client-side error reporting ---------------------------------------
+    // The WSL VM can be torn down mid-request, so a report often cannot be sent
+    // when it happens. Failed reports are buffered in localStorage and flushed
+    // the next time the server answers, which is what makes a mid-batch death
+    // visible afterwards instead of vanishing with the page.
+    const CLIENT_LOG_KEY = "solMediaStudioPendingLogs";
+
+    function bufferClientLog(entry) {
+      try {
+        const pending = JSON.parse(localStorage.getItem(CLIENT_LOG_KEY) || "[]");
+        pending.push(entry);
+        localStorage.setItem(CLIENT_LOG_KEY, JSON.stringify(pending.slice(-50)));
+      } catch (e) {
+        // Private windows and cleared site data make this throw; losing a
+        // buffered report is not worth breaking the page over.
+      }
+    }
+
+    async function reportClientError(message, context, extra = {}) {
+      const entry = {
+        level: extra.level || "error",
+        message: String(message).slice(0, 2000),
+        context: context || "ui",
+        url: extra.url || window.location.pathname,
+        stack: extra.stack ? String(extra.stack).slice(0, 4000) : null
+      };
+      try {
+        const res = await fetch("/api/v1/client-log", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(entry)
+        });
+        if (!res.ok) throw new Error(`status ${res.status}`);
+      } catch (err) {
+        bufferClientLog({ ...entry, buffered_at: new Date().toISOString() });
+      }
+    }
+
+    async function flushClientLogs() {
+      let pending;
+      try {
+        pending = JSON.parse(localStorage.getItem(CLIENT_LOG_KEY) || "[]");
+      } catch (e) {
+        return;
+      }
+      if (!pending.length) return;
+
+      const remaining = [];
+      for (const entry of pending) {
+        try {
+          const res = await fetch("/api/v1/client-log", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...entry,
+              message: entry.buffered_at ? `(buffered ${entry.buffered_at}) ${entry.message}` : entry.message
+            })
+          });
+          if (!res.ok) throw new Error(`status ${res.status}`);
+        } catch (err) {
+          remaining.push(entry);
+        }
+      }
+      try {
+        if (remaining.length) localStorage.setItem(CLIENT_LOG_KEY, JSON.stringify(remaining));
+        else localStorage.removeItem(CLIENT_LOG_KEY);
+      } catch (e) {
+        // nothing more we can do
+      }
+    }
+
+    window.addEventListener("error", (e) => {
+      reportClientError(e.message || "window error", "window.onerror", {
+        stack: e.error && e.error.stack, url: e.filename
+      });
+    });
+
+    window.addEventListener("unhandledrejection", (e) => {
+      const reason = e.reason || {};
+      reportClientError(reason.message || String(reason), "unhandledrejection", { stack: reason.stack });
+    });
+
     // ---- Storage & Reclaim -------------------------------------------------
     function fmtSize(bytes) {
       if (!bytes) return "0 B";
@@ -4423,6 +4521,7 @@
         reclaimBtn.disabled = false;
         reclaimBtn.textContent = `Reclaim ${fmtSize(data.total_bytes)}`;
       } catch (err) {
+        reportClientError(`Reclaim preview failed: ${err.message}`, "storage-preview", { stack: err.stack });
         box.style.display = "block";
         box.textContent = `Preview failed: ${err.message}`;
         reclaimBtn.disabled = true;

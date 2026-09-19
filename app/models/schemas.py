@@ -209,3 +209,24 @@ class ChaptersResponse(BaseModel):
     chapters: List[Chapter]
     youtube_block: str
     model: str
+
+
+class ClientLogRequest(BaseModel):
+    level: str = Field(default="error", description="error, warning or info")
+    message: str = Field(..., description="What the browser saw")
+    context: Optional[str] = Field(default=None, description="Where it happened, e.g. 'batch-ingest'")
+    url: Optional[str] = Field(default=None, description="Request or page URL involved")
+    stack: Optional[str] = Field(default=None, description="Stack trace, when there is one")
+
+
+class ClientLogResponse(BaseModel):
+    recorded: bool
+    level: str
+
+
+class DiagnosticsResponse(BaseModel):
+    log_file: str
+    log_file_exists: bool
+    log_file_size_bytes: int
+    events: List[Dict[str, Any]]
+    tail: List[str]

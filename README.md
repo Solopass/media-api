@@ -46,6 +46,7 @@
 - **Live Job Monitor**: Real-time task progress, speeds, cancellation (`✕ Cancel`), and history purging (`Clear Finished`).
 - **Vault Explorer Tab**: Recursively scans recent markdown transcripts in `D:\AI\Vault\Transcripts`, displays tags and metadata, copies wikilinks with one click, and offers an embedded preview drawer.
 - **Dynamic Idle Shutdown**: Configure auto-sleep directly from the header (`1m`, `5m`, `15m`, `30m`, `Keep Awake`).
+- **Durable Error Logging**: Everything the server logs is written to `D:\AI\Cache\logs\media-api.log` (rotating, 2 MB x 3), not just stdout, so a failure survives the WSL VM being torn down. Browser-side failures are reported too — and when the server is unreachable at that moment, they are buffered in the page and flushed once it answers again, which is what makes a mid-batch death visible afterwards. `GET /api/v1/diagnostics` returns recent warnings and errors.
 - **Storage Breakdown & Reclaim**: Click the **D: Drive** chip in the header for a per-category breakdown of `D:\Output` and the upload cache, then reclaim media older than 7/30/90 days. Always a two-step flow — preview the exact file list, then confirm — and transcript sidecars, notes, and any file belonging to a running job are never deleted.
 
 ---

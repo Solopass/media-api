@@ -203,7 +203,22 @@ replaces both rather than duplicating.
 
 During ingest, set `"generate_chapters": true` (a second local LLM pass; off by default).
 
-### 8. `GET /api/v1/storage` & `POST /api/v1/storage/reclaim`
+### 8. `GET /api/v1/diagnostics` & `POST /api/v1/client-log`
+Failure visibility, for when something breaks and the evidence would otherwise be gone.
+
+- The server logs to `D:\AI\Cache\logs\media-api.log` (rotating, 2 MB x 3) in addition to
+  stdout/journald, including uvicorn request errors and access lines, and any unhandled
+  exception with its traceback.
+- `POST /api/v1/client-log` takes `{level, message, context?, url?, stack?}` from the UI.
+  The page reports failed fetches, batch item failures and uncaught JS errors here. When
+  the server is unreachable at that moment — the WSL VM being torn down mid-request is the
+  common case — the report is buffered in `localStorage` and flushed on the next
+  successful health poll, tagged with when it originally happened.
+- `GET /api/v1/diagnostics?limit=50&level=WARNING&tail_lines=0` returns the recent
+  warnings and errors held in memory, the log file path and size, and optionally the last
+  N lines of the file.
+
+### 9. `GET /api/v1/storage` & `POST /api/v1/storage/reclaim`
 Per-category accounting of the API's own output directories, plus age-based cleanup.
 
 `GET /api/v1/storage` (add `?refresh=true` to bypass the 30s scan cache):
@@ -246,7 +261,7 @@ Categories: `videos`, `audio`, `uploads` (reclaimable) and `sidecars`, `note_mir
 
 Responses carry exact byte counts (`total_bytes`, `freed_bytes`) alongside the rounded MB.
 
-### 9. `GET /api/v1/models` (GPU VRAM & Model Headroom)
+### 10. `GET /api/v1/models` (GPU VRAM & Model Headroom)
 Returns available Ollama LLM models enriched with memory footprint assessments against dedicated GPU VRAM:
 ```json
 {
