@@ -361,6 +361,53 @@ def test_pipeline_active_tracking():
     assert job_manager.is_pipeline_active() == initial
 
 
+def test_run_ingest_pipeline_with_speedman_dispatch(tmp_path):
+    from unittest import mock
+    from app.routers.ingest import run_ingest_pipeline
+    from app.models.schemas import IngestRequest
+    from app.queue.manager import job_manager
+
+    fake_audio = tmp_path / "speedman_test.wav"
+    fake_audio.write_bytes(b"RIFFdummywavdata")
+
+    fake_res = {
+        "engine": "parakeet",
+        "model": "parakeet-tdt-0.6b-v3-q8_0",
+        "language": "en",
+        "duration": 10.0,
+        "segments": [{"id": 0, "start": 0.0, "end": 2.0, "text": "Testing speedman"}],
+        "full_text": "Testing speedman",
+    }
+
+    job_id = job_manager.create_job("ingest", str(fake_audio))
+    req = IngestRequest(
+        source=str(fake_audio),
+        engine="parakeet",
+        summarize=False,
+        speedman_speed=5.0,
+        speedman_preset="fast",
+    )
+
+    fake_note = tmp_path / "2026-09-17_speedman_test.md"
+    fake_note.write_text("# Meeting note", encoding="utf-8")
+
+    fake_urlopen_resp = mock.MagicMock()
+    fake_urlopen_resp.status = 200
+    fake_urlopen_resp.read.return_value = b'{"job_id": "job_speedman_abc123", "status": "queued"}'
+    fake_urlopen_resp.__enter__.return_value = fake_urlopen_resp
+
+    with mock.patch("app.routers.ingest.stt_service.transcribe", return_value=fake_res), \
+         mock.patch("app.routers.ingest.ObsidianService.create_transcript_note", return_value=fake_note), \
+         mock.patch("app.routers.ingest._trigger_reindex"), \
+         mock.patch("urllib.request.urlopen", return_value=fake_urlopen_resp):
+        run_ingest_pipeline(job_id, req)
+
+    job = job_manager.get_job(job_id)
+    assert job.status == "completed"
+    assert job.output_files.get("speedman_job_id") == "job_speedman_abc123"
+
+
+
 
 
 

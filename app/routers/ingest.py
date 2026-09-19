@@ -8,6 +8,7 @@ import subprocess
 import threading
 import traceback
 import urllib.parse
+import urllib.request
 from pathlib import Path
 from typing import Dict, Optional
 from fastapi import APIRouter, HTTPException
@@ -377,6 +378,28 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
                 except Exception as e:
                     logger.warning(f"[ingest] Could not add chapters to sidecar: {e}")
             out_files["transcript_json"] = str(out_json)
+
+        # Optional Speedman Auto-Compression
+        if req.speedman_speed and req.speedman_speed > 1.0:
+            try:
+                sp_payload = json.dumps({
+                    "input_path": str(audio_path),
+                    "speed": float(req.speedman_speed),
+                    "preset": req.speedman_preset or "fast",
+                    "format": "mp3",
+                }).encode("utf-8")
+                sp_req = urllib.request.Request(
+                    "http://127.0.0.1:8081/api/v1/jobs/compress",
+                    data=sp_payload,
+                    headers={"Content-Type": "application/json"},
+                )
+                with urllib.request.urlopen(sp_req, timeout=3.0) as sp_resp:
+                    if sp_resp.status in (200, 201):
+                        sp_data = json.loads(sp_resp.read().decode())
+                        out_files["speedman_job_id"] = sp_data.get("job_id")
+                        logger.info(f"[ingest] Dispatched auto-compression to Speedman: {sp_data.get('job_id')}")
+            except Exception as sp_err:
+                logger.warning(f"[ingest] Speedman auto-compression dispatch skipped/failed: {sp_err}")
 
         job_manager.update_job(
             job_id,

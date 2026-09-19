@@ -53,6 +53,8 @@ class IngestRequest(BaseModel):
     tags: list[str] = Field(default_factory=list, description="Custom tags for Obsidian YAML frontmatter")
     keep_video: bool = Field(default=False, description="Keep the downloaded source video after transcription (default: delete it; extracted audio and transcript are always kept)")
     generate_chapters: bool = Field(default=False, description="Also generate YouTube-style chapter markers (a second local LLM pass)")
+    speedman_speed: Optional[float] = Field(default=None, description="Optional target speed for Speedman auto-compression (e.g. 5.0 for 5x)")
+    speedman_preset: str = Field(default="fast", description="Speedman DSP clarity preset: natural | fast | aggressive | max")
     priority: str = Field(default="normal", description="Queue priority")
 
 class ConfigIdleRequest(BaseModel):
