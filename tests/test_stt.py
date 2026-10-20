@@ -428,3 +428,21 @@ def test_ingest_request_rejects_speed_speedman_cannot_accept():
     with pytest.raises(ValidationError):
         IngestRequest(source="x", speedman_speed=31)
     assert IngestRequest(source="x", speedman_speed=1.01).speedman_speed == 1.01
+
+
+@pytest.mark.parametrize("keep_video,quality,expected", [
+    (False, None, "480p"),
+    (True, None, "best"),
+    (False, "1080p", "1080p"),
+])
+def test_ingest_download_quality_choice(tmp_path, keep_video, quality, expected):
+    from unittest import mock
+    from app.routers.ingest import run_ingest_pipeline
+    from app.models.schemas import IngestRequest
+    from app.queue.manager import job_manager
+
+    req = IngestRequest(source="https://example.com/v", keep_video=keep_video, quality=quality)
+    job_id = job_manager.create_job("ingest", req.source)
+    with mock.patch("app.routers.ingest.YtDlpService.download", side_effect=RuntimeError("stop")) as dl:
+        run_ingest_pipeline(job_id, req)
+    assert dl.call_args.kwargs["quality"] == expected

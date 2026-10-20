@@ -106,6 +106,7 @@ def cmd_download(args):
         "url": args.url,
         "format": args.format,
         "audio_only": args.audio_only,
+        "quality": args.quality,
         "priority": "normal"
     }
     res = post_json("/download", data)
@@ -122,7 +123,8 @@ def cmd_clip(args):
         "start_time": args.start,
         "end_time": args.end,
         "format": args.format,
-        "re_encode": args.re_encode
+        "re_encode": args.re_encode,
+        "quality": args.quality
     }
     res = post_json("/clip", data)
     job_id = res["job_id"]
@@ -155,7 +157,8 @@ def cmd_ingest(args):
         "engine": args.engine,
         "model_size": args.model,
         "summarize": not args.no_summary,
-        "llm_model": args.llm_model
+        "llm_model": args.llm_model,
+        "quality": args.quality
     }
     res = post_json("/ingest", data)
     job_id = res["job_id"]
@@ -235,6 +238,7 @@ def main():
         parser.add_argument("url", help="Target media URL")
         parser.add_argument("--format", default="mp4", choices=["mp4", "webm", "mp3", "wav", "m4a"], help="Output format")
         parser.add_argument("--audio-only", action="store_true", help="Download audio only")
+        parser.add_argument("--quality", default="best", choices=["best", "2160p", "1440p", "1080p", "720p", "480p", "360p"], help="Video quality cap (default: best)")
         parser.add_argument("--no-wait", action="store_true", help="Do not wait for job completion")
         parser.add_argument("--close", action="store_true", help="Immediately shut down API after completion")
         cmd_download(parser.parse_args(args_to_parse))
@@ -247,6 +251,7 @@ def main():
         parser.add_argument("end", help="End timestamp (HH:MM:SS or seconds)")
         parser.add_argument("--format", default="mp4", help="Output format")
         parser.add_argument("--re-encode", action="store_true", help="Force re-encode vs stream copy")
+        parser.add_argument("--quality", default="best", choices=["best", "2160p", "1440p", "1080p", "720p", "480p", "360p"], help="Video quality cap when the source is a URL (default: best)")
         parser.add_argument("--no-wait", action="store_true", help="Do not wait for job completion")
         parser.add_argument("--close", action="store_true", help="Immediately shut down API after completion")
         cmd_clip(parser.parse_args(args_to_parse))
@@ -271,6 +276,7 @@ def main():
         parser.add_argument("--engine", default=None, choices=["parakeet", "whisper"], help="STT engine (default: parakeet)")
         parser.add_argument("--model", default="tiny", choices=["tiny", "base", "small", "medium"], help="Whisper model size (whisper engine only)")
         parser.add_argument("--no-summary", action="store_true", help="Disable executive Ollama summary")
+        parser.add_argument("--quality", default=None, choices=["best", "2160p", "1440p", "1080p", "720p", "480p", "360p"], help="Video quality cap for URL sources (default: best if the video is kept, else 480p)")
         parser.add_argument("--llm-model", default="qwen2.5-coder:7b", help="Local LLM for executive summary")
         parser.add_argument("--no-wait", action="store_true", help="Do not wait for job completion")
         parser.add_argument("--close", action="store_true", help="Immediately shut down API after completion")

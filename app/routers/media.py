@@ -45,7 +45,8 @@ def run_download_task(job_id: str, req: DownloadRequest):
             url=req.url,
             audio_only=req.audio_only,
             target_format=req.format.value,
-            progress_hook=progress
+            progress_hook=progress,
+            quality=req.quality.value
         )
 
         if job_manager.is_cancelled(job_id):
@@ -75,7 +76,7 @@ def run_clip_task(job_id: str, req: ClipRequest):
 
         # If source is a URL, download it first
         if req.source.startswith("http://") or req.source.startswith("https://"):
-            info = YtDlpService.download(req.source)
+            info = YtDlpService.download(req.source, quality=req.quality.value)
             source_path = Path(info["file_path"])
         else:
             source_path = normalize_path(req.source)

@@ -1444,6 +1444,19 @@
                     <span class="slider"></span>
                   </label>
                 </label>
+                <div class="form-group" style="margin-top: 0.5rem;">
+                  <label for="ingest-quality">Video Quality <span class="hint">(URL sources)</span></label>
+                  <select id="ingest-quality">
+                    <option value="" selected>Auto (highest if kept, else 480p)</option>
+                    <option value="best">Highest available</option>
+                    <option value="2160p">2160p (4K)</option>
+                    <option value="1440p">1440p</option>
+                    <option value="1080p">1080p</option>
+                    <option value="720p">720p</option>
+                    <option value="480p">480p</option>
+                    <option value="360p">360p</option>
+                  </select>
+                </div>
                 <label class="switch-label" style="margin-top: 0.5rem;">
                   <span>Keep Source Video</span>
                   <label class="switch">
@@ -1799,6 +1812,19 @@
               </div>
             </div>
 
+            <div class="form-group">
+              <label for="download-quality">Video Quality <span class="hint">(ignored for audio only)</span></label>
+              <select id="download-quality">
+                  <option value="best" selected>Highest available</option>
+                  <option value="2160p">2160p (4K)</option>
+                  <option value="1440p">1440p</option>
+                  <option value="1080p">1080p</option>
+                  <option value="720p">720p</option>
+                  <option value="480p">480p</option>
+                  <option value="360p">360p</option>
+              </select>
+            </div>
+
             <div class="form-row">
               <div class="form-group">
                 <label for="download-format">Format</label>
@@ -1892,6 +1918,19 @@
                 <label for="clip-end">End Timecode</label>
                 <input type="text" id="clip-end" required placeholder="00:02:30">
               </div>
+            </div>
+
+            <div class="form-group">
+              <label for="clip-quality">Video Quality <span class="hint">(when the source is a URL)</span></label>
+              <select id="clip-quality">
+                  <option value="best" selected>Highest available</option>
+                  <option value="2160p">2160p (4K)</option>
+                  <option value="1440p">1440p</option>
+                  <option value="1080p">1080p</option>
+                  <option value="720p">720p</option>
+                  <option value="480p">480p</option>
+                  <option value="360p">360p</option>
+              </select>
             </div>
 
             <div class="form-row">
@@ -2089,6 +2128,12 @@
     function keepVideoVal() {
       const el = document.getElementById("ingest-keep-video");
       return !!(el && el.checked);
+    }
+
+    // Null lets the API choose: highest when the video is kept, 480p when it is deleted after transcription.
+    function ingestQualityVal() {
+      const el = document.getElementById("ingest-quality");
+      return (el && el.value) || null;
     }
 
     // Null means auto-detect; a code outside Parakeet's 25 languages routes to Whisper.
@@ -3058,6 +3103,7 @@
               vault_subfolder: subfolderVal,
               tags: tagsVal,
               keep_video: keepVideoVal(),
+              quality: ingestQualityVal(),
               language: languageVal(),
               generate_chapters: chaptersVal()
             };
@@ -3194,6 +3240,7 @@
             vault_subfolder: subfolderVal,
             tags: tagsVal,
             keep_video: keepVideoVal(),
+            quality: ingestQualityVal(),
             language: languageVal(),
             generate_chapters: chaptersVal()
           };
@@ -3720,6 +3767,7 @@
         vault_subfolder: subfolderVal,
         tags: tagsVal,
         keep_video: keepVideoVal(),
+        quality: ingestQualityVal(),
         language: languageVal(),
         generate_chapters: chaptersVal()
       };
@@ -4016,7 +4064,8 @@
       const body = {
         url: document.getElementById("download-url").value.trim(),
         format: document.getElementById("download-format").value,
-        audio_only: document.getElementById("download-audio-only").checked
+        audio_only: document.getElementById("download-audio-only").checked,
+        quality: document.getElementById("download-quality").value
       };
 
       btn.disabled = true;
@@ -4086,6 +4135,7 @@
         start_time: document.getElementById("clip-start").value.trim(),
         end_time: document.getElementById("clip-end").value.trim(),
         format: document.getElementById("clip-format").value,
+        quality: document.getElementById("clip-quality").value,
         re_encode: document.getElementById("clip-reencode").checked,
         normalize_audio: document.getElementById("clip-normalize") ? document.getElementById("clip-normalize").checked : false,
         speech_optimized: document.getElementById("clip-speech-opt") ? document.getElementById("clip-speech-opt").checked : false

@@ -248,7 +248,8 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
                         speed=f"Downloading ({round(downloaded / (1024*1024), 1)}/{round(total / (1024*1024), 1)} MB - {speed_mb:.1f} MB/s, ETA {eta}s)"
                     )
 
-            media_info = YtDlpService.download(req.source, audio_only=False, progress_hook=_dl_progress)
+            quality = req.quality.value if req.quality else ("best" if req.keep_video else "480p")
+            media_info = YtDlpService.download(req.source, audio_only=False, progress_hook=_dl_progress, quality=quality)
             current_media = Path(media_info["file_path"])
             produced_media.append(current_media)
         else:

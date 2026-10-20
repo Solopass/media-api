@@ -16,10 +16,21 @@ class MediaFormat(str, Enum):
     WAV = "wav"
     M4A = "m4a"
 
+class VideoQuality(str, Enum):
+    """Video resolution cap; BEST takes the highest resolution the source offers."""
+    BEST = "best"
+    P2160 = "2160p"
+    P1440 = "1440p"
+    P1080 = "1080p"
+    P720 = "720p"
+    P480 = "480p"
+    P360 = "360p"
+
 class DownloadRequest(BaseModel):
     url: str = Field(..., description="Target video URL (YouTube, Podcast, etc.)")
     format: MediaFormat = Field(default=MediaFormat.MP4, description="Desired output format")
     audio_only: bool = Field(default=False, description="Extract audio only")
+    quality: VideoQuality = Field(default=VideoQuality.BEST, description="Video quality cap (ignored for audio only): best, 2160p, 1440p, 1080p, 720p, 480p, 360p")
     priority: str = Field(default="normal", description="Queue priority: high, normal, idle")
 
 class ClipRequest(BaseModel):
@@ -30,6 +41,7 @@ class ClipRequest(BaseModel):
     re_encode: bool = Field(default=False, description="Force frame-accurate re-encode vs fast keyframe copy")
     normalize_audio: bool = Field(default=False, description="Apply EBU R128 loudness normalization")
     speech_optimized: bool = Field(default=False, description="Convert to 16kHz mono WAV for speech/STT")
+    quality: VideoQuality = Field(default=VideoQuality.BEST, description="Video quality cap when the source is a URL: best, 2160p, 1440p, 1080p, 720p, 480p, 360p")
 
 class TranscribeRequest(BaseModel):
     source: str = Field(..., description="URL or local media path to transcribe")
@@ -52,6 +64,7 @@ class IngestRequest(BaseModel):
     vault_subfolder: str = Field(default="Transcripts", description="Subfolder path inside D:\\AI\\Vault")
     tags: list[str] = Field(default_factory=list, description="Custom tags for Obsidian YAML frontmatter")
     keep_video: bool = Field(default=False, description="Keep the downloaded source video after transcription (default: delete it; extracted audio and transcript are always kept)")
+    quality: Optional[VideoQuality] = Field(default=None, description="Video quality cap for URL sources. Default: best when keep_video is true, otherwise 480p (the video is deleted after transcription and the audio is unaffected)")
     generate_chapters: bool = Field(default=False, description="Also generate YouTube-style chapter markers (a second local LLM pass)")
     speedman_speed: Optional[float] = Field(default=None, ge=1.01, le=30.0, description="Optional target speed for Speedman auto-compression (e.g. 5.0 for 5x); Speedman accepts 1.01-30")
     speedman_preset: str = Field(default="fast", description="Speedman DSP clarity preset: natural | fast | aggressive | max")

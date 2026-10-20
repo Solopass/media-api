@@ -25,7 +25,7 @@
 | `POST` | `/api/v1/config/idle-timeout` | Dynamically update idle auto-shutdown timeout and auto-close state |
 | `GET` | `/api/v1/models` | Query local Ollama daemon for available LLM models |
 | `GET` | `/api/v1/media/probe` | Pre-fetch URL or local media metadata (title, uploader, duration, thumbnail) |
-| `POST` | `/api/v1/download` | Asynchronously download YouTube or web media to `D:\Output\Videos\` |
+| `POST` | `/api/v1/download` | Asynchronously download YouTube or web media to `D:\Output\Videos\`. Body: `url`, `format`, `audio_only`, `quality` (`best` default, or a cap such as `1080p`) |
 | `POST` | `/api/v1/clip` | Slice media with optional EBU R128 loudness normalizer and 16kHz speech WAV downmixing |
 | `POST` | `/api/v1/transcribe` | Transcribe media (Parakeet or `faster-whisper`) |
 | `POST` | `/api/v1/ingest` | One-shot pipeline: Download → Clip → Extract Audio → STT (chunked for long media) → Ollama Summary → Obsidian Note |
@@ -68,6 +68,7 @@ One-shot ingestion pipeline:
   "vault_subfolder": "Transcripts/Meetings",
   "tags": ["architecture", "review"],
   "keep_video": false,
+  "quality": null,
   "generate_chapters": false
 }
 ```
@@ -77,6 +78,8 @@ One-shot ingestion pipeline:
 - The extracted audio and `.transcript.json` sidecar are **always** kept — the UI audio player streams them back.
 - Files the job did not produce are never deleted, even inside `D:\Output\Videos`. Re-ingesting a video you parked there by path leaves it exactly where it is.
 - Cancelled and failed jobs also reclaim their own download, so an aborted run does not strand gigabytes.
+
+**Video Quality** (`quality`, URL sources only): `best`, `2160p`, `1440p`, `1080p`, `720p`, `480p` or `360p`. `best` takes the highest resolution the source offers; the others cap the height. Left `null`, it is `best` when `keep_video` is `true` and `480p` otherwise, since the video is deleted after transcription and the audio is unaffected.
 
 **Language** (`language`, default `null` = auto-detect): a code such as `en`, `es`, `ja`. Parakeet covers 25 European languages; any other code routes the job to faster-whisper automatically.
 
@@ -97,9 +100,11 @@ Precision audio/video extraction:
   "format": "mp4",
   "re_encode": false,
   "normalize_audio": true,
-  "speech_optimized": false
+  "speech_optimized": false,
+  "quality": "best"
 }
 ```
+- `quality`: video quality cap when `source` is a URL (same values as ingest; default `best`).
 - `normalize_audio`: Applies dual-pass EBU R128 filter (`loudnorm=I=-16:TP=-1.5:LRA=11`).
 - `speech_optimized`: Downmixes to 16,000 Hz 16-bit mono PCM WAV for ultra-fast STT inference.
 

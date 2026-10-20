@@ -16,6 +16,15 @@ def _configure_js_runtime(ydl_opts: Dict[str, Any]) -> None:
     if shutil.which("node"):
         ydl_opts["js_runtimes"] = {"node": {}}
 
+QUALITY_HEIGHTS = {"2160p": 2160, "1440p": 1440, "1080p": 1080, "720p": 720, "480p": 480, "360p": 360}
+
+def _video_format_selector(quality: str) -> str:
+    """yt-dlp format string: the best streams, capped at the requested height ("best" = no cap)."""
+    height = QUALITY_HEIGHTS.get(quality)
+    if height is None:
+        return "bv*+ba/b"
+    return f"bv*[height<={height}]+ba/b[height<={height}]/bv*+ba/b"
+
 # Collection URLs resolve to many videos, so they cannot be ingested as one item.
 COLLECTION_PATH_MARKERS = ("/playlist", "/channel/", "/c/", "/user/", "/@")
 
@@ -128,7 +137,8 @@ class YtDlpService:
         audio_only: bool = False,
         target_format: str = "mp4",
         progress_hook: Optional[Callable[[Dict[str, Any]], None]] = None,
-        custom_out_dir: Optional[Path] = None
+        custom_out_dir: Optional[Path] = None,
+        quality: str = "best"
     ) -> Dict[str, Any]:
         out_dir = custom_out_dir or (settings.output_audio if audio_only else settings.output_videos)
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -162,15 +172,15 @@ class YtDlpService:
                 "preferredquality": "192",
             }]
         else:
-            if target_format == "mp4":
-                ydl_opts["format"] = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
-            else:
-                ydl_opts["format"] = "best"
+            ydl_opts["format"] = _video_format_selector(quality)
+            # Highest-resolution streams are often VP9/AV1, which MP4 cannot always hold; fall back to MKV.
+            ydl_opts["merge_output_format"] = "webm/mkv" if target_format == "webm" else "mp4/mkv"
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
-            
+            downloads = info.get("requested_downloads") or [{}]
+            filename = downloads[0].get("filepath") or ydl.prepare_filename(info)
+
             # If audio was converted, filename extension changed
             if audio_only:
                 base_path = Path(filename).with_suffix(f".{codec}")
