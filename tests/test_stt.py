@@ -407,8 +407,24 @@ def test_run_ingest_pipeline_with_speedman_dispatch(tmp_path):
     assert job.output_files.get("speedman_job_id") == "job_speedman_abc123"
 
 
+def test_speedman_dispatch_failure_is_reported_not_fatal(tmp_path):
+    from unittest import mock
+    from app.routers.ingest import _dispatch_speedman
+
+    audio = tmp_path / "a.wav"
+    with mock.patch("urllib.request.urlopen", side_effect=OSError("connection refused")):
+        job_id, err = _dispatch_speedman(audio, 5.0, "fast")
+    assert job_id is None
+    assert "connection refused" in err
 
 
+def test_ingest_request_rejects_speed_speedman_cannot_accept():
+    import pytest
+    from pydantic import ValidationError
+    from app.models.schemas import IngestRequest
 
-
-
+    with pytest.raises(ValidationError):
+        IngestRequest(source="x", speedman_speed=1.005)
+    with pytest.raises(ValidationError):
+        IngestRequest(source="x", speedman_speed=31)
+    assert IngestRequest(source="x", speedman_speed=1.01).speedman_speed == 1.01

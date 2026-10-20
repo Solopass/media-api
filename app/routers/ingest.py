@@ -164,6 +164,33 @@ def _trigger_reindex():
 
     threading.Thread(target=_run, name="reindex", daemon=True).start()
 
+SPEEDMAN_COMPRESS_URL = "http://127.0.0.1:8081/api/v1/jobs/compress"
+
+
+def _dispatch_speedman(audio_path: Path, speed: float, preset: str) -> tuple[Optional[str], Optional[str]]:
+    """Queue an auto-compression job on Speedman. Returns (job_id, None) or (None, reason); never raises."""
+    payload = json.dumps({
+        "input_path": str(audio_path),
+        "speed": float(speed),
+        "preset": preset or "fast",
+        "format": "mp3",
+    }).encode("utf-8")
+    request = urllib.request.Request(
+        SPEEDMAN_COMPRESS_URL, data=payload, headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=3.0) as resp:
+            job_id = json.loads(resp.read().decode()).get("job_id")
+    except Exception as e:
+        logger.warning(f"[ingest] Speedman auto-compression dispatch failed: {e}")
+        return None, str(e)
+    if not job_id:
+        logger.warning("[ingest] Speedman accepted the request but returned no job_id")
+        return None, "Speedman returned no job_id"
+    logger.info(f"[ingest] Dispatched auto-compression to Speedman: {job_id}")
+    return job_id, None
+
+
 def run_ingest_pipeline(job_id: str, req: IngestRequest):
     if job_manager.is_cancelled(job_id):
         return
@@ -380,26 +407,12 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
             out_files["transcript_json"] = str(out_json)
 
         # Optional Speedman Auto-Compression
-        if req.speedman_speed and req.speedman_speed > 1.0:
-            try:
-                sp_payload = json.dumps({
-                    "input_path": str(audio_path),
-                    "speed": float(req.speedman_speed),
-                    "preset": req.speedman_preset or "fast",
-                    "format": "mp3",
-                }).encode("utf-8")
-                sp_req = urllib.request.Request(
-                    "http://127.0.0.1:8081/api/v1/jobs/compress",
-                    data=sp_payload,
-                    headers={"Content-Type": "application/json"},
-                )
-                with urllib.request.urlopen(sp_req, timeout=3.0) as sp_resp:
-                    if sp_resp.status in (200, 201):
-                        sp_data = json.loads(sp_resp.read().decode())
-                        out_files["speedman_job_id"] = sp_data.get("job_id")
-                        logger.info(f"[ingest] Dispatched auto-compression to Speedman: {sp_data.get('job_id')}")
-            except Exception as sp_err:
-                logger.warning(f"[ingest] Speedman auto-compression dispatch skipped/failed: {sp_err}")
+        if req.speedman_speed:
+            sp_job_id, sp_error = _dispatch_speedman(audio_path, req.speedman_speed, req.speedman_preset)
+            if sp_job_id:
+                out_files["speedman_job_id"] = sp_job_id
+            else:
+                out_files["speedman_error"] = sp_error
 
         job_manager.update_job(
             job_id,

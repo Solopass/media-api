@@ -73,9 +73,9 @@ class UpdaterService:
 
         uv_bin = shutil.which("uv") or "/usr/local/bin/uv"
         if os.path.exists(uv_bin) and venv_python.exists():
-            cmd = [uv_bin, "pip", "install", "--python", python_bin, "-U", "yt-dlp"]
+            cmd = [uv_bin, "pip", "install", "--python", python_bin, "-U", "yt-dlp", "yt-dlp-ejs"]
         else:
-            cmd = [python_bin, "-m", "pip", "install", "-U", "yt-dlp"]
+            cmd = [python_bin, "-m", "pip", "install", "-U", "yt-dlp", "yt-dlp-ejs"]
 
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -87,9 +87,9 @@ class UpdaterService:
             stdout = stdout_data.decode("utf-8", errors="replace").strip()
             stderr = stderr_data.decode("utf-8", errors="replace").strip()
 
-            cls.record_update_timestamp()
-
-            if proc.returncode != 0:
+            if proc.returncode == 0:
+                cls.record_update_timestamp()
+            else:
                 logger.warning(f"[updater] yt-dlp update command returned code {proc.returncode}: {stderr}")
                 return {
                     "status": "error",

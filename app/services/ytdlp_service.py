@@ -1,6 +1,7 @@
 import logging
 import re
 import os
+import shutil
 import urllib.parse
 from pathlib import Path
 from typing import Dict, Any, Optional, Callable
@@ -9,6 +10,11 @@ import yt_dlp
 from app.config import settings
 
 logger = logging.getLogger("media_api")
+
+def _configure_js_runtime(ydl_opts: Dict[str, Any]) -> None:
+    """Enables the node runtime for YouTube JS challenges; the solver itself comes from the yt-dlp-ejs package."""
+    if shutil.which("node"):
+        ydl_opts["js_runtimes"] = {"node": {}}
 
 # Collection URLs resolve to many videos, so they cannot be ingested as one item.
 COLLECTION_PATH_MARKERS = ("/playlist", "/channel/", "/c/", "/user/", "/@")
@@ -72,6 +78,7 @@ class YtDlpService:
             "no_warnings": True,
             "skip_download": True
         }
+        _configure_js_runtime(ydl_opts)
         cookiefile = _get_cookiefile()
         if cookiefile:
             ydl_opts["cookiefile"] = cookiefile
@@ -87,6 +94,7 @@ class YtDlpService:
             "extract_flat": True,
             "socket_timeout": 6,
         }
+        _configure_js_runtime(ydl_opts)
         cookiefile = _get_cookiefile()
         if cookiefile:
             ydl_opts["cookiefile"] = cookiefile
@@ -135,6 +143,7 @@ class YtDlpService:
             "no_warnings": True,
             "restrictfilenames": True
         }
+        _configure_js_runtime(ydl_opts)
 
         cookiefile = _get_cookiefile()
         if cookiefile:
@@ -195,6 +204,7 @@ class YtDlpService:
             "playlistend": max_items,
             "socket_timeout": 8,
         }
+        _configure_js_runtime(ydl_opts)
         cookiefile = _get_cookiefile()
         if cookiefile:
             ydl_opts["cookiefile"] = cookiefile
