@@ -7,7 +7,8 @@
 ## 🌟 Key Capabilities
 
 ### 1. One-Shot Obsidian Ingest Pipeline
-- **Unified Media Input**: Seamlessly accepts YouTube/web URLs, local Windows paths (`D:\...`), WSL paths (`/mnt/d/...`), or direct drag-and-drop file uploads.
+- **Unified Media Input**: Seamlessly accepts YouTube, X and other web URLs, local Windows paths (`D:\...`), WSL paths (`/mnt/d/...`), or direct drag-and-drop file uploads.
+- **X (Twitter) posts, no account needed**: individual post URLs download and clip like any other source. yt-dlp reaches public posts with a guest token, so **no login, cookies or API key is involved — and a `cookies.txt` present for another site is never sent to X.** Quality defaults to the highest rendition the post offers (X tops out near 720p, so a cap would cost visible quality for almost no bandwidth), while an explicit `quality` still applies. A post holding several videos expands into one row per video in Batch mode so you pick which to keep. Limits: X publishes no timeline, so profiles, search, lists and bookmarks cannot be read — only individual posts. Age-restricted and protected posts are out of reach by design, since that is what a login would be for. Looping "GIF" posts have no audio track, so they clip normally and skip transcription with the reason recorded in the note.
 - **Optional Trimming**: Slices input before speech recognition to extract only relevant intervals.
 - **5 Structured AI Summary Presets**:
   - `executive`: Core Briefing, Key Themes & Decisions, Deliverables & Action Items.
@@ -30,7 +31,7 @@
 
 ### 3. Multi-URL & Playlist Batch Queue
 - **Mode Switcher**: Easily toggle between single-target ingestion and multi-URL batch mode.
-- **YouTube Playlist & Channel Auto-Expansion**: Sub-second flat metadata extraction resolves playlists or channels into individual video items without downloading media upfront.
+- **YouTube Playlist & Channel Auto-Expansion**: Sub-second flat metadata extraction resolves playlists or channels into individual video items without downloading media upfront. An X post holding several videos expands the same way, one row per video.
 - **Playlist URLs Anywhere**: Paste a playlist or channel URL into the single-ingest field and the Studio switches to Batch mode and resolves it, rather than trying to download the collection as one video. Private, deleted and region-blocked entries are dropped, with the count shown ("Resolved Items — 10 unavailable skipped") so the total adding up to less than the playlist length is never a mystery.
 - **Interactive Pre-flight Checklist**: Review video thumbnails, titles, and durations before launching, with selective checkbox toggles and "Select / Deselect All" helpers.
 - **Sequential Pipeline Queue**: Ingest and transcription jobs run on a single server-side worker thread, one at a time, so a batch (or a second browser tab) cannot cause local LLM / Ollama GPU memory collisions. Host gaming stays smooth.

@@ -1340,7 +1340,7 @@
             <div id="ingest-single-container" class="form-group">
               <label for="ingest-source">Media Source (Web URL or Local Path)</label>
               <div class="input-with-upload">
-                <input type="text" id="ingest-source" placeholder="https://youtube.com/watch?v=... or D:\rec\meeting.wav">
+                <input type="text" id="ingest-source" placeholder="https://youtube.com/watch?v=... or https://x.com/user/status/... or D:\rec\meeting.wav">
                 <div class="upload-btn-target" id="ingest-upload-btn" title="Click to choose file, or drag & drop directly over this button">
                   <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                   <span class="upload-btn-text">Upload</span>
@@ -1362,16 +1362,16 @@
                   </div>
                 </div>
               </div>
-              <span class="hint">Supports YouTube/Web URLs, or drop/upload local media files directly to D:\AI\Cache\uploads</span>
+              <span class="hint">Supports YouTube, X and other web URLs, or drop/upload local media files directly to D:\AI\Cache\uploads. X needs no login: only individual posts work, not profiles or timelines</span>
             </div>
 
             <!-- Batch Input Container -->
             <div id="ingest-batch-container" class="form-group" style="display: none;">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-                <label for="ingest-batch-urls" style="margin-bottom: 0;">Media URLs (One per line, or YouTube Playlist URL)</label>
+                <label for="ingest-batch-urls" style="margin-bottom: 0;">Media URLs (one per line, or a YouTube playlist, or an X post holding several videos)</label>
                 <span id="batch-url-counter" class="pill" style="font-size: 0.72rem; padding: 0.15rem 0.5rem; text-transform: none;">0 URLs</span>
               </div>
-              <textarea id="ingest-batch-urls" rows="4" style="width: 100%; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-main); font-family: ui-monospace, Consolas, monospace; font-size: 0.82rem; padding: 0.6rem; resize: vertical;" placeholder="https://www.youtube.com/watch?v=...&#10;https://www.youtube.com/watch?v=...&#10;or https://www.youtube.com/playlist?list=..."></textarea>
+              <textarea id="ingest-batch-urls" rows="4" style="width: 100%; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-main); font-family: ui-monospace, Consolas, monospace; font-size: 0.82rem; padding: 0.6rem; resize: vertical;" placeholder="https://www.youtube.com/watch?v=...&#10;https://x.com/user/status/...&#10;or https://www.youtube.com/playlist?list=..."></textarea>
               <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.4rem; flex-wrap: wrap; gap: 0.5rem;">
                 <label class="switch-label" style="font-size: 0.8rem; margin-bottom: 0;">
                   <span>Auto-expand Playlists</span>
@@ -1789,7 +1789,7 @@
             <div>
               <h2 class="card-title">
                 <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                YouTube & Web Media Downloader
+                YouTube, X & Web Media Downloader
               </h2>
               <p class="card-desc">Download video or extract audio using workstation-optimized yt-dlp</p>
             </div>
@@ -1798,7 +1798,7 @@
           <form id="form-download">
             <div class="form-group">
               <label for="download-url">Media URL</label>
-              <input type="url" id="download-url" required placeholder="https://www.youtube.com/watch?v=...">
+              <input type="url" id="download-url" required placeholder="https://www.youtube.com/watch?v=... or https://x.com/user/status/...">
               <!-- URL Metadata Probe Preview -->
               <div class="media-probe-card" id="download-probe-card" style="display: none;">
                 <img class="probe-thumb" id="download-probe-thumb" src="" alt="Thumbnail" />
@@ -2226,7 +2226,7 @@
     // Fetch Health
     async function fetchHealth() {
       try {
-        const res = await fetch("/api/v1/health");
+        const res = await fetch("/api/v1/health?client=1");
         if (!res.ok) throw new Error("Health check failed");
         const data = await res.json();
         state.health = data;
@@ -2567,12 +2567,18 @@
       let consecutiveErrors = 0;
       const poller = setInterval(async () => {
         try {
-          const res = await fetch(`/api/v1/status/${jobId}`);
-          if (!res.ok) {
+          let res = null;
+          try {
+            res = await fetch(`/api/v1/status/${jobId}`);
+          } catch (netErr) {
+            res = null; // network blip (socket restart, busy WSL): retry, don't fail the job
+          }
+          if (!res || !res.ok) {
             consecutiveErrors++;
-            // Allow up to 5 consecutive failed pings during socket restarts or busy CPU
-            if (consecutiveErrors >= 5) {
-              throw new Error("Job status check failed after multiple attempts");
+            // ~45s of unanswered pings before giving up. A job the server still
+            // has keeps running either way, so a short outage must not show "failed".
+            if (consecutiveErrors >= 30) {
+              throw new Error("Lost contact with the server; check the Jobs list for the real result");
             }
             return;
           }
@@ -3242,7 +3248,11 @@
             keep_video: keepVideoVal(),
             quality: ingestQualityVal(),
             language: languageVal(),
-            generate_chapters: chaptersVal()
+            generate_chapters: chaptersVal(),
+            // Several videos can share one URL (an X post holds up to four), so
+            // this is what picks the one this row stands for. Null everywhere
+            // else, where the URL already identifies a single video.
+            playlist_index: item.playlist_index ?? null
           };
 
           const res = await fetch("/api/v1/ingest", {
@@ -3619,7 +3629,9 @@
         let skippedUnavailable = 0;
         try {
           for (const url of lines) {
-            const isPlaylist = url.includes("list=") || url.includes("/playlist") || url.includes("/channel/") || url.includes("/@");
+            // An X post is expanded too: one post URL can hold several videos,
+            // and expansion is what turns it into one row per video.
+            const isPlaylist = url.includes("list=") || url.includes("/playlist") || url.includes("/channel/") || url.includes("/@") || isXUrl(url);
             if (autoExpand || isPlaylist) {
               try {
                 const res = await fetch("/api/v1/batch/expand-playlist", {
@@ -3734,6 +3746,30 @@
       if (isCollectionUrl(sourceVal)) {
         await divertPlaylistToBatch(sourceVal);
         return;
+      }
+
+      // One X post can hold up to four videos. Ask how many before queueing, so
+      // a multi-video post reaches the Batch picker instead of quietly ingesting
+      // only the first. Checked here rather than in the preview probe, which is
+      // debounced and would switch modes while the URL is still being typed.
+      if (isXUrl(sourceVal)) {
+        try {
+          const probe = await fetch("/api/v1/media/probe?url=" + encodeURIComponent(sourceVal));
+          if (probe.ok) {
+            const info = await probe.json();
+            const count = info.video_count || 1;
+            if (count > 1) {
+              await divertPlaylistToBatch(
+                sourceVal,
+                `That post holds ${count} videos — switched to Batch mode so you can pick which to keep.`
+              );
+              return;
+            }
+          }
+        } catch (e) {
+          // A probe failure is no reason to block the ingest: the server
+          // validates the URL again and reports the real problem.
+        }
       }
 
       const btn = document.getElementById("btn-submit-ingest");
@@ -4392,9 +4428,34 @@
                   thumb.style.display = "none";
                 }
               }
+              // Say so when a post holds several videos, so being sent to the
+              // Batch picker on submit is expected rather than surprising.
+              // X only: it is the one source where several videos share a URL,
+              // and the Download tab has no Batch mode to send anyone to.
+              const count = data.video_count || 1;
+              if (title && count > 1 && isXUrl(val)) {
+                title.textContent = `${data.title || "Unknown Title"} — ${count} videos, pick in Batch`;
+              }
               card.style.display = "flex";
             } else {
-              card.style.display = "none";
+              // A failed probe used to hide the card and say nothing, so a URL
+              // that cannot be read gave no feedback until submit. An X URL
+              // fails for a specific reason that is worth showing right away.
+              let detail = "";
+              try {
+                detail = (await res.json()).detail || "";
+              } catch (parseErr) {
+                detail = "";
+              }
+              if (isXUrl(val) && detail) {
+                if (title) title.textContent = detail.replace(/^Failed to probe media:\s*/, "");
+                if (uploader) uploader.textContent = "";
+                if (duration) duration.textContent = "";
+                if (thumb) thumb.style.display = "none";
+                card.style.display = "flex";
+              } else {
+                card.style.display = "none";
+              }
             }
           } catch (e) {
             card.style.display = "none";
@@ -4650,6 +4711,23 @@
 
 
 
+    // Mirrors X_HOSTS in ytdlp_service.py.
+    const X_HOSTS = [
+      "x.com", "www.x.com", "mobile.x.com",
+      "twitter.com", "www.twitter.com", "mobile.twitter.com",
+      "t.co", "www.t.co", "amp.twimg.com"
+    ];
+
+    function isXUrl(value) {
+      const raw = (value || "").trim();
+      if (!/^https?:\/\//i.test(raw)) return false;
+      try {
+        return X_HOSTS.includes(new URL(raw).hostname.toLowerCase());
+      } catch (e) {
+        return false;
+      }
+    }
+
     // A playlist or channel URL cannot be ingested as a single item: yt-dlp
     // expands it and picks an arbitrary entry. Mirrors is_collection_url on the
     // server so the UI can redirect before the request is made.
@@ -4662,13 +4740,17 @@
       } catch (e) {
         return false;
       }
+      // The markers below are YouTube-shaped and misread X paths: a post by the
+      // handle @c is /c/status/<id>. The server classifies X separately, and so
+      // does this file (isXUrl plus the probe's video_count).
+      if (isXUrl(raw)) return false;
       const path = parsed.pathname.toLowerCase();
       if (["/playlist", "/channel/", "/c/", "/user/", "/@"].some(m => path.includes(m))) return true;
       return parsed.searchParams.has("list") && !parsed.searchParams.has("v");
     }
 
     // Hand a playlist URL to Batch mode and resolve it, instead of failing on it.
-    async function divertPlaylistToBatch(url) {
+    async function divertPlaylistToBatch(url, message) {
       state.ingestMode = "batch";
       const modeBatch = document.getElementById("btn-ingest-mode-batch");
       const modeSingle = document.getElementById("btn-ingest-mode-single");
@@ -4682,7 +4764,7 @@
       if (batchBox) batchBox.style.display = "block";
       if (textarea) textarea.value = url;
 
-      showToast("That is a playlist — switched to Batch mode and resolving it.", 4000);
+      showToast(message || "That is a playlist — switched to Batch mode and resolving it.", 4000);
       const resolveBtn = document.getElementById("btn-resolve-batch");
       if (resolveBtn) resolveBtn.click();
     }
@@ -4777,6 +4859,10 @@
     fetchModels();
     fetchJobs();
     setInterval(fetchHealth, 8000);
+    // Coming back to a throttled background tab: tell the server right away.
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") fetchHealth();
+    });
   </script>
 </body>
 </html>

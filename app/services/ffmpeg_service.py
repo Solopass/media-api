@@ -209,6 +209,31 @@ class FFmpegService:
         return out_file
 
     @staticmethod
+    def has_audio_stream(source_path: Path) -> bool:
+        """
+        True when the file carries at least one audio stream.
+
+        X serves looping "GIFs" as MP4 with video only. Extracting audio from
+        one fails, so the caller checks first and skips transcription instead.
+        On any ffprobe trouble this answers True, so a probe failure cannot
+        silently turn a normal video into a no-audio one.
+        """
+        cmd = [
+            "ffprobe", "-v", "error",
+            "-select_streams", "a",
+            "-show_entries", "stream=index",
+            "-of", "csv=p=0",
+            str(source_path)
+        ]
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True)
+        except Exception:
+            return True
+        if res.returncode != 0:
+            return True
+        return bool(res.stdout.strip())
+
+    @staticmethod
     def probe_local_media(source_path: Path) -> Dict[str, Any]:
         cmd = [
             "ffprobe", "-v", "error",

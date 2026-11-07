@@ -248,3 +248,22 @@ def test_clip_endpoint_with_normalizer_and_speech_opt():
 
 
 
+
+
+def test_open_tab_poll_keeps_server_awake():
+    """The Studio tab polls /health?client=1; that must reset the idle clock."""
+    import time
+    from app.queue.manager import job_manager
+
+    job_manager._last_client_seen = 0.0
+    with job_manager._lock:
+        job_manager._last_activity = time.time() - 1000
+    # A plain health check (e.g. the SOL dashboard) is not a user being present.
+    data = client.get("/api/v1/health").json()
+    assert data["client_connected"] is False
+    assert data["idle_seconds"] >= 999
+
+    data = client.get("/api/v1/health?client=1").json()
+    assert data["client_connected"] is True
+    assert data["idle_seconds"] < 5
+    job_manager._last_client_seen = 0.0

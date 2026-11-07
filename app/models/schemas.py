@@ -64,7 +64,8 @@ class IngestRequest(BaseModel):
     vault_subfolder: str = Field(default="Transcripts", description="Subfolder path inside D:\\AI\\Vault")
     tags: list[str] = Field(default_factory=list, description="Custom tags for Obsidian YAML frontmatter")
     keep_video: bool = Field(default=False, description="Keep the downloaded source video after transcription (default: delete it; extracted audio and transcript are always kept)")
-    quality: Optional[VideoQuality] = Field(default=None, description="Video quality cap for URL sources. Default: best when keep_video is true, otherwise 480p (the video is deleted after transcription and the audio is unaffected)")
+    quality: Optional[VideoQuality] = Field(default=None, description="Video quality cap for URL sources. Default: best for X posts (X tops out near 720p, so capping costs visible quality for almost no bandwidth) and when keep_video is true, otherwise 480p (the video is deleted after transcription and the audio is unaffected)")
+    playlist_index: Optional[int] = Field(default=None, ge=1, description="Which video to take when one URL holds several (an X post with up to four videos). Comes from the matching PlaylistItem returned by /batch/expand-playlist")
     generate_chapters: bool = Field(default=False, description="Also generate YouTube-style chapter markers (a second local LLM pass)")
     speedman_speed: Optional[float] = Field(default=None, ge=1.01, le=30.0, description="Optional target speed for Speedman auto-compression (e.g. 5.0 for 5x); Speedman accepts 1.01-30")
     speedman_preset: str = Field(default="fast", description="Speedman DSP clarity preset: natural | fast | aggressive | max")
@@ -81,6 +82,7 @@ class MediaProbeResponse(BaseModel):
     duration_formatted: str = "00:00"
     thumbnail: Optional[str] = None
     description: Optional[str] = None
+    video_count: int = Field(default=1, description="Playable videos behind this URL. An X post can hold up to four, in which case the caller should offer a picker rather than ingesting one")
 
 class JobResponse(BaseModel):
     job_id: str
@@ -131,9 +133,10 @@ class PlaylistItem(BaseModel):
     duration_formatted: str = "00:00"
     thumbnail: Optional[str] = None
     uploader: Optional[str] = None
+    playlist_index: Optional[int] = Field(default=None, description="Position of this video within its source URL, for sources where every video shares one URL (an X post holding several videos). Pass it back on ingest to pick this video")
 
 class PlaylistExpandRequest(BaseModel):
-    url: str = Field(..., description="YouTube playlist, channel, or video URL")
+    url: str = Field(..., description="YouTube playlist, channel, or video URL, or an X post holding several videos")
     max_items: int = Field(default=50, ge=1, le=500, description="Maximum number of items to extract")
 
 class PlaylistExpandResponse(BaseModel):

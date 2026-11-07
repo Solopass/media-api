@@ -10,7 +10,7 @@ import traceback
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
 
@@ -20,7 +20,10 @@ from app.models.schemas import (
     ChaptersRequest, ChaptersResponse
 )
 from app.queue.manager import job_manager
-from app.services.ytdlp_service import YtDlpService, is_collection_url
+from app.services.ytdlp_service import (
+    YtDlpService, is_collection_url, is_x_host, x_friendly_error,
+    x_refusal_message, x_url_kind,
+)
 from app.services.ffmpeg_service import FFmpegService
 from app.services import stt_service
 from app.services.obsidian_service import ObsidianService, summarize_with_ollama
@@ -31,6 +34,10 @@ from app.paths import is_inside, is_path_allowed, note_roots
 logger = logging.getLogger("media_api")
 
 router = APIRouter(prefix="/api/v1", tags=["Full Ingestion Pipeline"])
+
+# Named because the failure handler only rewrites errors raised while fetching
+# the source; a later stage's error keeps its own text and stage name.
+DOWNLOAD_STAGE = "Download / Resolve Media"
 
 # Safety net for cleanup: even a file the pipeline believes it produced must
 # live somewhere this API writes into before it can be deleted.
@@ -227,7 +234,7 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
             return
 
         # Step 1: Download or resolve local file
-        stage = "Download / Resolve Media"
+        stage = DOWNLOAD_STAGE
         is_url = req.source.startswith("http://") or req.source.startswith("https://")
         if is_url:
             job_manager.update_job(job_id, progress_percent=15.0, speed="Starting download...")
@@ -248,10 +255,37 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
                         speed=f"Downloading ({round(downloaded / (1024*1024), 1)}/{round(total / (1024*1024), 1)} MB - {speed_mb:.1f} MB/s, ETA {eta}s)"
                     )
 
-            quality = req.quality.value if req.quality else ("best" if req.keep_video else "480p")
-            media_info = YtDlpService.download(req.source, audio_only=False, progress_hook=_dl_progress, quality=quality)
+            if req.quality:
+                quality = req.quality.value
+            elif is_x_host(req.source):
+                # X caps out near 720p, so the 480p default below would drop a
+                # post to roughly a third of its height to save a megabyte.
+                quality = "best"
+            else:
+                quality = "best" if req.keep_video else "480p"
+            media_info = YtDlpService.download(
+                req.source,
+                audio_only=False,
+                progress_hook=_dl_progress,
+                quality=quality,
+                playlist_index=req.playlist_index,
+            )
             current_media = Path(media_info["file_path"])
             produced_media.append(current_media)
+
+            # One URL can hold several videos (an X post holds up to four). When
+            # no particular one was asked for, say which was taken rather than
+            # letting the rest vanish silently.
+            total_videos = media_info.get("total_videos") or 1
+            if total_videos > 1 and req.playlist_index is None:
+                logger.info(
+                    f"[ingest] {req.source} holds {total_videos} videos; took the first. "
+                    "Use Batch mode to pick among them."
+                )
+                job_manager.update_job(
+                    job_id,
+                    speed=f"Post holds {total_videos} videos - took video 1. Use Batch mode to pick.",
+                )
         else:
             current_media = normalize_path(req.source)
             if not current_media.exists():
@@ -294,46 +328,77 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
         job_manager.update_job(job_id, progress_percent=50.0, speed="Extracting audio...")
         video_exts = {".mp4", ".mkv", ".webm", ".mov", ".avi", ".flv", ".ts", ".wmv"}
         non_native_audio = {".opus", ".wma"}
-        if current_media.suffix.lower() in video_exts or current_media.suffix.lower() in non_native_audio:
-            audio_path = FFmpegService.extract_audio(
-                current_media,
-                progress_callback=_stage_progress(job_id, time.time(), 50.0, 62.0, "Extracting audio"),
+        is_video = current_media.suffix.lower() in video_exts
+
+        # X serves looping "GIFs" as MP4 with no audio stream at all. ffmpeg
+        # cannot extract audio that is not there, so check before trying and
+        # write the note without a transcript rather than failing the job.
+        silent_media = is_video and not FFmpegService.has_audio_stream(current_media)
+
+        out_json = None
+        trans_res: Dict[str, Any]
+
+        if silent_media:
+            # audio_path stays None: there is no audio file, so nothing should be
+            # kept back from cleanup and nothing should be handed to Speedman.
+            logger.info(f"[ingest] {current_media.name} has no audio stream; skipping transcription")
+            job_manager.update_job(
+                job_id, progress_percent=84.0,
+                speed="No audio track - skipping transcription",
             )
+            trans_res = {
+                "full_text": "",
+                "segments": [],
+                "duration": 0.0,
+                "language": "n/a",
+                "model": "skipped (no audio track)",
+            }
         else:
-            audio_path = current_media
-        partial_files["audio"] = str(audio_path)
+            if is_video or current_media.suffix.lower() in non_native_audio:
+                audio_path = FFmpegService.extract_audio(
+                    current_media,
+                    progress_callback=_stage_progress(job_id, time.time(), 50.0, 62.0, "Extracting audio"),
+                )
+            else:
+                audio_path = current_media
+            partial_files["audio"] = str(audio_path)
+
+            if job_manager.is_cancelled(job_id):
+                return
+
+            stage = "Speech-to-Text Transcription"
+            engine = stt_service.resolve_engine(req.engine, req.language)
+            job_manager.update_job(job_id, progress_percent=65.0, speed=f"Transcribing audio with {engine}...")
+            trans_res = stt_service.transcribe(
+                audio_path, engine=engine, model_size=req.model_size, language=req.language,
+                progress_callback=_stage_progress(
+                    job_id, time.time(), 65.0, 84.0, f"Transcribing ({engine})"
+                ),
+                should_cancel=lambda: job_manager.is_cancelled(job_id),
+                status_callback=lambda text: job_manager.update_job(job_id, speed=text),
+            )
+
+            if job_manager.is_cancelled(job_id):
+                return
+
+            # Full result sidecar for GUI audio player timestamp seeking and sync
+            out_json = audio_path.with_suffix(".transcript.json")
+            try:
+                with open(out_json, "w", encoding="utf-8") as f:
+                    json.dump({**trans_res, "media": media_info, "source": req.source, "audio": str(audio_path)}, f, ensure_ascii=False, indent=1)
+                partial_files["transcript_json"] = str(out_json)
+            except Exception:
+                out_json = None
 
         if job_manager.is_cancelled(job_id):
             return
-
-        stage = "Speech-to-Text Transcription"
-        engine = stt_service.resolve_engine(req.engine, req.language)
-        job_manager.update_job(job_id, progress_percent=65.0, speed=f"Transcribing audio with {engine}...")
-        trans_res = stt_service.transcribe(
-            audio_path, engine=engine, model_size=req.model_size, language=req.language,
-            progress_callback=_stage_progress(
-                job_id, time.time(), 65.0, 84.0, f"Transcribing ({engine})"
-            ),
-            should_cancel=lambda: job_manager.is_cancelled(job_id),
-            status_callback=lambda text: job_manager.update_job(job_id, speed=text),
-        )
-
-        if job_manager.is_cancelled(job_id):
-            return
-
-        # Full result sidecar for GUI audio player timestamp seeking and sync
-        out_json = audio_path.with_suffix(".transcript.json")
-        try:
-            with open(out_json, "w", encoding="utf-8") as f:
-                json.dump({**trans_res, "media": media_info, "source": req.source, "audio": str(audio_path)}, f, ensure_ascii=False, indent=1)
-            partial_files["transcript_json"] = str(out_json)
-        except Exception:
-            out_json = None
 
         # Step 4: Executive AI Summary via Ollama
         stage = "Ollama AI Summary"
         summary = "*(Summary disabled)*"
-        if req.summarize:
+        if silent_media:
+            summary = "*(No summary: this video has no audio track, so there is nothing to transcribe or summarize.)*"
+        elif req.summarize:
             if job_manager.is_cancelled(job_id):
                 return
             job_manager.update_job(job_id, progress_percent=85.0, speed=f"Generating {req.summary_preset} summary via {req.llm_model}...")
@@ -350,7 +415,7 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
 
         # Step 4b: Optional chapter markers (a second, separate LLM pass)
         chapters = []
-        if req.generate_chapters:
+        if req.generate_chapters and not silent_media:
             stage = "Chapter Generation"
             job_manager.update_job(job_id, progress_percent=90.0, speed="Generating chapter markers...")
             chapters = chapters_service.generate_chapters(
@@ -381,16 +446,28 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
         # Step 6: Discard the source video unless the user asked to keep it
         removed_media, freed_mb = [], 0.0
         if not req.keep_video:
-            removed_media, freed_mb = _discard_source_video(produced_media, keep=audio_path)
+            # Normally the extracted audio is what survives, since the player
+            # streams that and the video is just bulk. A silent video has no
+            # extracted audio and no transcript, so it is the only artifact the
+            # note can point at -- deleting it would leave the run with nothing.
+            keep_target = audio_path
+            if keep_target is None and silent_media:
+                keep_target = current_media
+                logger.info(
+                    f"[ingest] Keeping {current_media.name}: it has no audio track, "
+                    "so it is the only media this run produced"
+                )
+            removed_media, freed_mb = _discard_source_video(produced_media, keep=keep_target)
 
         # Step 7: Trigger Semantic Vector Re-Index (Non-blocking)
         _trigger_reindex()
 
         encoded_note = urllib.parse.quote(f"Agent/{clean_sub}/{vault_note.name}")
         out_files = {
-            "audio": str(audio_path),
             "vault_note": str(vault_note)
         }
+        if audio_path:
+            out_files["audio"] = str(audio_path)
         if current_media.exists():
             out_files["media"] = str(current_media)
         if out_json and Path(out_json).exists():
@@ -408,7 +485,9 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
             out_files["transcript_json"] = str(out_json)
 
         # Optional Speedman Auto-Compression
-        if req.speedman_speed:
+        if req.speedman_speed and not audio_path:
+            out_files["speedman_error"] = "Nothing to compress: this video has no audio track."
+        elif req.speedman_speed:
             sp_job_id, sp_error = _dispatch_speedman(audio_path, req.speedman_speed, req.speedman_preset)
             if sp_job_id:
                 out_files["speedman_job_id"] = sp_job_id
@@ -451,10 +530,19 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
                 obs_link = None
                 obs_uri = None
 
+            # Some X failures cannot be spotted before the request goes out (a
+            # post whose video was removed, or one that needs a sign-in), so
+            # they are translated here rather than shown as raw yt-dlp text.
+            # Only for the download stage: a transcription or summary error that
+            # happens to mention "login" is not an X sign-in wall, and replacing
+            # it would hide which stage actually broke.
+            friendly = None
+            if stage == DOWNLOAD_STAGE:
+                friendly = x_friendly_error(req.source, e)
             job_manager.update_job(
                 job_id,
                 status=JobStatus.FAILED,
-                error=f"Failed at {stage}: {e}",
+                error=friendly or f"Failed at {stage}: {e}",
                 obsidian_link=obs_link,
                 obsidian_uri=obs_uri,
                 output_files=partial_files
@@ -466,6 +554,12 @@ def run_ingest_pipeline(job_id: str, req: IngestRequest):
 
 @router.post("/ingest", response_model=JobResponse)
 def ingest_media(req: IngestRequest):
+    # X has no public timeline, so only individual posts can be read. Saying so
+    # here beats letting yt-dlp fail at download time with "Unsupported URL".
+    x_refusal = x_refusal_message(x_url_kind(req.source))
+    if x_refusal:
+        raise HTTPException(status_code=400, detail=x_refusal)
+
     # A playlist or channel URL expands to many videos; handing it to the
     # single-item pipeline makes yt-dlp pick an arbitrary entry, which fails
     # confusingly when that entry happens to be unavailable.
@@ -676,6 +770,12 @@ def expand_playlist(req: PlaylistExpandRequest):
     if not req.url or not req.url.strip():
         raise HTTPException(status_code=400, detail="A valid URL must be provided")
 
+    # Batch cannot expand an X profile either: there is no public timeline to
+    # read, so this is a dead end rather than a list of videos.
+    x_refusal = x_refusal_message(x_url_kind(req.url.strip()))
+    if x_refusal:
+        raise HTTPException(status_code=400, detail=x_refusal)
+
     try:
         data = YtDlpService.extract_playlist(req.url.strip(), max_items=req.max_items)
         return PlaylistExpandResponse(
@@ -687,5 +787,8 @@ def expand_playlist(req: PlaylistExpandRequest):
         )
     except Exception as e:
         logger.warning(f"[batch] Failed to expand playlist for {req.url}: {e}")
+        friendly = x_friendly_error(req.url.strip(), e)
+        if friendly:
+            raise HTTPException(status_code=400, detail=friendly)
         raise HTTPException(status_code=400, detail=f"Failed to expand playlist: {str(e)}")
 

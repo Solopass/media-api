@@ -31,6 +31,7 @@ class JobQueueManager:
         self._lock = threading.Lock()
         self._io_lock = threading.Lock()
         self._last_activity: float = time.time()
+        self._last_client_seen: float = 0.0
         self._active_pipelines: int = 0
         self._last_save: float = 0.0
         self._storage_file: Path = settings.cache_dir / "media_jobs.json"
@@ -122,6 +123,20 @@ class JobQueueManager:
     def get_last_activity_time(self) -> float:
         with self._lock:
             return self._last_activity
+
+    def mark_client_seen(self):
+        """Record that a Media Studio tab polled us (an open tab keeps the server up)."""
+        with self._lock:
+            self._last_client_seen = time.time()
+
+    def get_last_client_seen(self) -> float:
+        with self._lock:
+            return self._last_client_seen
+
+    def get_idle_since(self) -> float:
+        """Start of the current idle period: last job activity or last open-tab poll."""
+        with self._lock:
+            return max(self._last_activity, self._last_client_seen)
 
     def get_active_job_count(self) -> int:
         """Return the number of jobs currently queued or running."""

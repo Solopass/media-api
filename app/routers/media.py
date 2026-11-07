@@ -5,7 +5,7 @@ from datetime import datetime
 
 from app.models.schemas import DownloadRequest, ClipRequest, JobResponse, JobStatus, MediaProbeResponse
 from app.queue.manager import job_manager
-from app.services.ytdlp_service import YtDlpService
+from app.services.ytdlp_service import YtDlpService, x_friendly_error, x_refusal_message, x_url_kind
 from app.services.ffmpeg_service import FFmpegService
 from app.config import settings, normalize_path
 from app.services.updater_service import UpdaterService
@@ -116,6 +116,9 @@ def run_clip_task(job_id: str, req: ClipRequest):
 @router.get("/media/probe", response_model=MediaProbeResponse)
 def probe_media_info(url: str = Query(..., description="Target video/audio URL or local file path to probe")):
     """Extract metadata preview (title, uploader, duration, thumbnail) without full download."""
+    x_refusal = x_refusal_message(x_url_kind(url))
+    if x_refusal:
+        raise HTTPException(status_code=400, detail=x_refusal)
     try:
         if url.startswith("http://") or url.startswith("https://"):
             data = YtDlpService.probe_url(url)
@@ -128,6 +131,9 @@ def probe_media_info(url: str = Query(..., description="Target video/audio URL o
     except HTTPException:
         raise
     except Exception as e:
+        friendly = x_friendly_error(url, e)
+        if friendly:
+            raise HTTPException(status_code=400, detail=friendly)
         raise HTTPException(status_code=400, detail=f"Failed to probe media: {str(e)}")
 
 @router.post("/download", response_model=JobResponse)

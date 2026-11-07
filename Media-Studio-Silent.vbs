@@ -12,7 +12,7 @@ strUrl = "http://127.0.0.1:8080/"
 
 ' 1. Check if keepalive process is already running in WSL; if not, launch hidden sleep infinity
 ' Window style 0 = hidden, False = run asynchronously without blocking
-objShell.Run "wsl.exe -d " & strWslDistro & " -- bash -c ""pgrep -f 'sleep infinity' >/dev/null || exec sleep infinity""", 0, False
+objShell.Run "wsl.exe -d " & strWslDistro & " -- bash -c ""pgrep -f '^sleep infinity$' >/dev/null || exec sleep infinity""", 0, False
 
 ' 2. Wait up to 5 seconds for media-api to respond to socket connection
 isAlive = False

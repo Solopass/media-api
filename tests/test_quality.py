@@ -56,8 +56,16 @@ def _download_opts(tmp_path, **kwargs):
 def test_download_defaults_to_best_and_reports_merged_path(tmp_path):
     opts, result = _download_opts(tmp_path)
     assert opts["format"] == "bv*+ba/b"
-    assert opts["merge_output_format"] == "mp4/mkv"
     assert result["file_path"].endswith("t.mkv")
+
+
+def test_mp4_download_never_falls_back_to_mkv(tmp_path):
+    """MP4 selected means an .mp4 file, even when the best streams are VP9/Opus."""
+    opts, _ = _download_opts(tmp_path)
+    assert opts["merge_output_format"] == "mp4"
+    assert opts["format_sort"][0] == "res"          # quality still comes first
+    assert "ext:mp4:m4a" in opts["format_sort"]
+    assert {"key": "FFmpegVideoRemuxer", "preferedformat": "mp4"} in opts["postprocessors"]
 
 
 def test_download_applies_quality_cap_and_webm_container(tmp_path):

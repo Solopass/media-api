@@ -1,6 +1,6 @@
 # 📹 Workstation Linux Media API Reference
 
-> REST API for automated YouTube and web media downloads, precision video/audio clipping with EBU R128 normalization and 16kHz speech downmixing, speech-to-text transcription (NVIDIA Parakeet by default, `faster-whisper` for multilingual fallback), AI-powered structured summaries, and direct Obsidian vault ingestion.
+> REST API for automated YouTube, X and web media downloads, precision video/audio clipping with EBU R128 normalization and 16kHz speech downmixing, speech-to-text transcription (NVIDIA Parakeet by default, `faster-whisper` for multilingual fallback), AI-powered structured summaries, and direct Obsidian vault ingestion.
 
 ---
 
@@ -25,11 +25,11 @@
 | `POST` | `/api/v1/config/idle-timeout` | Dynamically update idle auto-shutdown timeout and auto-close state |
 | `GET` | `/api/v1/models` | Query local Ollama daemon for available LLM models |
 | `GET` | `/api/v1/media/probe` | Pre-fetch URL or local media metadata (title, uploader, duration, thumbnail) |
-| `POST` | `/api/v1/download` | Asynchronously download YouTube or web media to `D:\Output\Videos\`. Body: `url`, `format`, `audio_only`, `quality` (`best` default, or a cap such as `1080p`) |
+| `POST` | `/api/v1/download` | Asynchronously download YouTube, X or web media to `D:\Output\Videos\`. Body: `url`, `format`, `audio_only`, `quality` (`best` default, or a cap such as `1080p`) |
 | `POST` | `/api/v1/clip` | Slice media with optional EBU R128 loudness normalizer and 16kHz speech WAV downmixing |
 | `POST` | `/api/v1/transcribe` | Transcribe media (Parakeet or `faster-whisper`) |
 | `POST` | `/api/v1/ingest` | One-shot pipeline: Download → Clip → Extract Audio → STT (chunked for long media) → Ollama Summary → Obsidian Note |
-| `POST` | `/api/v1/batch/expand-playlist` | Fast flat-extraction of YouTube playlists, channels, or video metadata for batch ingestion (<2s) |
+| `POST` | `/api/v1/batch/expand-playlist` | Fast flat-extraction of YouTube playlists, channels, video metadata, or an X post holding several videos, for batch ingestion (<2s) |
 | `POST` | `/api/v1/vault/resummarize` | Regenerate or change summary preset for existing Obsidian note in-place without re-transcribing |
 | `POST` | `/api/v1/vault/chapters` | Generate validated YouTube-style chapter markers for an existing note |
 | `GET` | `/api/v1/storage` | Per-category breakdown of the output directories, plus D: usage |
@@ -132,7 +132,7 @@ Instant flat metadata extraction (sub-second):
 ```
 
 ### 5. `POST /api/v1/batch/expand-playlist`
-Fast flat extraction of a YouTube playlist, channel, or video URL into individual items (<2s) for batch ingestion:
+Fast flat extraction of a YouTube playlist, channel, or video URL into individual items (<2s) for batch ingestion. An X post holding several videos expands the same way, one item per video; those items all share the post's URL and are told apart by `playlist_index`, which you pass back to `/api/v1/ingest` to pick one:
 ```json
 {
   "url": "https://www.youtube.com/playlist?list=PL12345",

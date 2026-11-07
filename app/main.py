@@ -32,6 +32,8 @@ LOG_FILE = setup_logging()
 logger = logging.getLogger("media_api")
 logger.info(f"[startup] Logging to {LOG_FILE}")
 
+CLIENT_GRACE_SECONDS = 150
+
 async def idle_watchdog():
     """Monitors activity and automatically shuts down when idle to free all host RAM and threads."""
     logger.info(
@@ -51,7 +53,13 @@ async def idle_watchdog():
             if active_jobs > 0 or is_active:
                 continue
 
-            idle_duration = time.time() - job_manager.get_last_activity_time()
+            # An open Media Studio tab polls /health?client=1 every 8s. Background
+            # tabs get throttled to ~1 poll/min, so allow a grace window before
+            # treating the tab as gone, whatever the idle timeout is.
+            if time.time() - job_manager.get_last_client_seen() < CLIENT_GRACE_SECONDS:
+                continue
+
+            idle_duration = time.time() - job_manager.get_idle_since()
             if idle_duration >= settings.idle_timeout_seconds:
                 logger.info(
                     f"[*] Idle timeout reached ({int(idle_duration)}s with 0 active jobs). "
@@ -126,10 +134,12 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 @app.get("/api/v1/health")
 @app.get("/health", include_in_schema=False)
-def health_check():
+def health_check(client: bool = False):
+    if client:
+        job_manager.mark_client_seen()
     d_stat = shutil.disk_usage("/mnt/d")
     active_jobs = job_manager.get_active_job_count()
-    idle_sec = int(time.time() - job_manager.get_last_activity_time())
+    idle_sec = int(time.time() - job_manager.get_idle_since())
     return {
         "status": "online",
         "workstation": "SOL",
@@ -139,6 +149,7 @@ def health_check():
         "host_p_cores_protected": True,
         "active_jobs": active_jobs,
         "idle_seconds": idle_sec,
+        "client_connected": time.time() - job_manager.get_last_client_seen() < CLIENT_GRACE_SECONDS,
         "auto_close_enabled": settings.auto_close,
         "idle_timeout_seconds": settings.idle_timeout_seconds,
         "ytdlp_version": UpdaterService.get_installed_version(),
