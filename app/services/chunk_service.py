@@ -137,7 +137,7 @@ def write_chunks(audio_path: Path, boundaries: List[float], dest_dir: Path) -> L
             "-c:a", "pcm_s16le",
             str(out_path),
         ]
-        res = subprocess.run(cmd, capture_output=True, text=True)
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
         if res.returncode != 0 or not out_path.exists():
             raise RuntimeError(f"Could not cut chunk {index}: {res.stderr[-300:]}")
         chunks.append(AudioChunk(index=index, start=start, duration=duration, path=out_path))
