@@ -129,12 +129,14 @@ def test_vault_note_endpoint():
     response = client.get("/api/v1/vault/note?path=/mnt/d/Output/Videos/test.mp4")
     assert response.status_code == 403
 
-    # Attempting non-markdown file inside vault (if any) or non-existent note returns 404
-    response = client.get("/api/v1/vault/note?path=/mnt/d/AI/Vault/Transcripts/non_existent_note.md")
+    # A non-existent note inside the (test) vault returns 404
+    vault = settings.vault_transcripts           # a temp folder for the whole suite (conftest.isolate_note_paths)
+    response = client.get(f"/api/v1/vault/note?path={vault / 'non_existent_note.md'}")
     assert response.status_code == 404
 
-    # Reading existing sample note
-    sample_note = "/mnt/d/AI/Vault/Transcripts/sample_transcription_format.md"
+    # Reading an existing note (written here, never read from the real vault)
+    sample_note = vault / "sample_transcription_format.md"
+    sample_note.write_text("---\ntitle: Sample\n---\n\n# Sample\n\nA transcript.\n", encoding="utf-8")
     response = client.get(f"/api/v1/vault/note?path={sample_note}")
     assert response.status_code == 200
     data = response.json()

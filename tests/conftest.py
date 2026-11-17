@@ -54,6 +54,32 @@ def isolate_log_file(tmp_path_factory):
         setup_logging()
 
 
+@pytest.fixture(scope="session", autouse=True)
+def isolate_note_paths(tmp_path_factory):
+    """
+    Keep the suite out of the real vault and output folders.
+
+    Tests that drive a failing ingest (source https://example.com/v) write a
+    "FAILED: Unknown Media" error note, its mirror and a dashboard update. Left
+    alone they land in D:\\AI\\Vault\\Transcripts, D:\\Output\\Transcripts and
+    Transcripts_Dashboard.md (found 2026-11-17: four fake notes in the vault from
+    test runs, two of them from the nightly fix lane's baseline run).
+    """
+    from app.config import settings
+
+    root = tmp_path_factory.mktemp("notes")
+    real = (settings.vault_transcripts, settings.vault_dashboard, settings.output_transcripts)
+    settings.vault_transcripts = root / "Vault" / "Transcripts"
+    settings.vault_dashboard = root / "Vault" / "Transcripts_Dashboard.md"
+    settings.output_transcripts = root / "Output" / "Transcripts"
+    for d in (settings.vault_transcripts, settings.output_transcripts):
+        d.mkdir(parents=True, exist_ok=True)
+    try:
+        yield
+    finally:
+        settings.vault_transcripts, settings.vault_dashboard, settings.output_transcripts = real
+
+
 @pytest.fixture(autouse=True)
 def no_vault_reindex(monkeypatch):
     """Never shell out to find-concept --reindex from a test."""
